@@ -37,6 +37,7 @@
    #:coalton
    #:coalton-prelude
    #:coalton-library/big-float
+   #:coalton-library/cell
    #:coalton-library/math)
   (:export
    #:fib
@@ -71,7 +72,21 @@
    #:tak
    #:stak
    #:takl
-   #:takr))
+   #:takr)
+  )
+
+(define-coalton-benchmark pi
+    ()
+  (:use
+   #:coalton
+   #:coalton-prelude
+   #:coalton-library/math)
+  (:local-nicknames (#:list #:coalton-library/list)
+                    (#:cell #:coalton-library/cell))
+  (:export
+   #:leibniz-rec
+   #:leibniz-cell)
+  )
 
 ;;;
 ;;; Running benchmarks

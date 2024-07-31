@@ -151,6 +151,7 @@
   :components ((:file "package")
                (:file "fibonacci")
                (:file "big-float")
+               (:file "pi")
                (:module "gabriel-benchmarks"
                 :serial t
                 :components ((:file "tak")
