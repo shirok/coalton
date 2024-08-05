@@ -152,6 +152,7 @@
                (:file "fibonacci")
                (:file "big-float")
                (:file "pi")
+               (:file "seq")
                (:module "gabriel-benchmarks"
                 :serial t
                 :components ((:file "tak")

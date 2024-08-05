@@ -37,7 +37,6 @@
    #:coalton
    #:coalton-prelude
    #:coalton-library/big-float
-   #:coalton-library/cell
    #:coalton-library/math)
   (:export
    #:fib
@@ -86,6 +85,24 @@
   (:export
    #:leibniz-rec
    #:leibniz-cell)
+  )
+
+(define-coalton-benchmark seq
+    ()
+  (:use
+   #:coalton
+   #:coalton-prelude
+   #:coalton-library/math)
+  (:local-nicknames (#:list #:coalton-library/list)
+                    (#:cell #:coalton-library/cell)
+                    (#:seq  #:coalton-library/seq)
+                    (#:iter #:coalton-library/iterator))
+  (:export
+   #:cons-seq
+   #:cons-list
+   #:walk-seq
+   #:walk-seq-generic
+   #:walk-list)
   )
 
 ;;;
