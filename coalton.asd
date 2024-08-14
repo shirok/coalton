@@ -153,6 +153,7 @@
                (:file "big-float")
                (:file "pi")
                (:file "seq")
+               (:file "matrix")
                (:module "gabriel-benchmarks"
                 :serial t
                 :components ((:file "tak")

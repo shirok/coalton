@@ -105,6 +105,20 @@
    #:walk-list)
   )
 
+(define-coalton-benchmark matrix
+    ()
+  (:use
+   #:coalton
+   #:coalton-prelude
+   #:coalton-library/math)
+  (:local-nicknames (#:list #:coalton-library/list)
+                    (#:cell #:coalton-library/cell)
+                    (#:seq  #:coalton-library/seq)
+                    (#:iter #:coalton-library/iterator)
+                    (#:vec  #:coalton-library/vector)
+                    (#:arr  #:coalton-library/lisparray))
+  )
+
 ;;;
 ;;; Running benchmarks
 ;;;
