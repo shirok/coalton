@@ -154,6 +154,7 @@
                (:file "pi")
                (:file "seq")
                (:file "matrix")
+               (:file "aobench/aobench")
                (:module "gabriel-benchmarks"
                 :serial t
                 :components ((:file "tak")

@@ -119,6 +119,18 @@
                     (#:arr  #:coalton-library/lisparray))
   )
 
+(define-coalton-benchmark aobench
+    ()
+  (:use
+   #:coalton
+   #:coalton-prelude
+   #:coalton-library/math)
+  (:local-nicknames (#:list #:coalton-library/list)
+                    (#:types #:coalton-library/types)
+                    (#:cell #:coalton-library/cell)
+                    (#:arr  #:coalton-library/lisparray))
+  )
+
 ;;;
 ;;; Running benchmarks
 ;;;
