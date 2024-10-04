@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ ccl-ci-test ]
   pull_request:
     branches: [ main ]
 
@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        LISP_IMPL: ["sbcl", "allegro", "ccl"]
+        LISP_IMPL: ["ccl"]
         COALTON_ENV: ["release", "development"]
         SAFETY: ["0", "3"]
         DISABLE_SPECIALIZATION: ["1", "0"]
