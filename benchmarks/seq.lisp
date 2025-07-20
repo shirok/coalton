@@ -55,33 +55,33 @@
   ;;  using seq:push
   (declare cons-seq (UFix -> (seq:Seq UFix)))
   (define (cons-seq size)
-    (let ((declare rec (UFix -> (seq:Seq UFix) -> (seq:Seq UFix)))
-          (rec (fn (k s)
-                 (if (== k size)
-                     s
-                     (rec (+ k 1) (seq:push s k))))))
-      (rec 0 (seq:new))))
+    (let ((declare %rec (UFix -> (seq:Seq UFix) -> (seq:Seq UFix)))
+          (%rec (fn (k s)
+                  (if (== k size)
+                      s
+                      (%rec (+ k 1) (seq:push s k))))))
+      (%rec 0 (seq:new))))
 
   ;;  for baseline
   (declare cons-list (UFix -> (List UFix)))
   (define (cons-list size)
-    (let ((declare rec (UFix -> (List UFix) -> (List UFix)))
-          (rec (fn (k s)
-                 (if (== k size)
-                     s
-                     (rec (+ k 1) (cons k s))))))
-      (rec 0 Nil)))
+    (let ((declare %rec (UFix -> (List UFix) -> (List UFix)))
+          (%rec (fn (k s)
+                  (if (== k size)
+                      s
+                      (%rec (+ k 1) (cons k s))))))
+      (%rec 0 Nil)))
 
   ;; Scanning
   (declare walk-seq ((seq:Seq UFix) -> UFix))
   (define (walk-seq seq)
-    (let ((declare rec ((seq:Seq UFix) -> UFix -> UFix -> UFix))
-          (rec (fn (s i r)
-                 (if (== i (seq:size seq))
-                     r
-                     (rec s (+ i 1)
-                          (+ r (from-some "" (seq:get s i))))))))
-        (rec seq 0 0)))
+    (let ((declare %rec ((seq:Seq UFix) -> UFix -> UFix -> UFix))
+          (%rec (fn (s i r)
+                  (if (== i (seq:size seq))
+                      r
+                      (%rec s (+ i 1)
+                            (+ r (from-some "" (seq:get s i))))))))
+      (%rec seq 0 0)))
 
   ;;  generic iterator + fold!
   (declare walk-seq-generic ((seq:Seq UFix) -> UFix))

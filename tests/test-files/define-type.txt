@@ -1,0 +1,424 @@
+================================================================================
+1 Define type
+================================================================================
+
+(package coalton-unit-tests)
+
+(define-type T-dt1)
+
+================================================================================
+2 Define type
+================================================================================
+
+(package coalton-unit-tests)
+
+(define-type (T-dt2 :a))
+
+================================================================================
+3 Define type
+================================================================================
+
+(package coalton-unit-tests)
+
+(define-type T-dt3 T1-dt3)
+
+================================================================================
+4 Define type
+================================================================================
+
+(package coalton-unit-tests/define-type-4)
+
+(define-type (T-dt4 :a :b :c)
+  (T1-dt4 :a)
+  (T2-dt4 :b :c))
+
+================================================================================
+5 Define type
+================================================================================
+
+(package coalton-unit-tests)
+
+(repr :native cl:t)
+(define-type T-dt5)
+
+================================================================================
+6 Define type
+================================================================================
+
+(package coalton-unit-tests)
+
+(repr :enum)
+(define-type T-dt6
+  First-dt6
+  Second-dt6
+  Third-dt6)
+
+
+================================================================================
+7 Define type with docstrings
+================================================================================
+
+(package coalton-unit-tests)
+
+(define-type (T-dt7 :a)
+  T1-dt7         "This is an empty constructor"
+  (T2-dt7 :a)    "This is a constructor"
+  (T3-dt7 :a :a) "This is a well-nourished constructor"))
+
+================================================================================
+100 Malformed type definition
+================================================================================
+
+(package test-package)
+
+(define-type)
+
+--------------------------------------------------------------------------------
+
+error: Malformed type definition
+  --> test:3:0
+   |
+ 3 |  (define-type)
+   |  ^^^^^^^^^^^^^ expected body
+
+================================================================================
+101 Invalid type variable
+================================================================================
+
+(package test-package)
+
+(define-type (T a))
+
+--------------------------------------------------------------------------------
+
+error: Invalid type variable
+  --> test:3:16
+   |
+ 3 |  (define-type (T a))
+   |                  ^ expected keyword symbol
+help: add `:` to symbol
+ 3 | (define-type (T :a))
+   |                 --
+
+================================================================================
+102 Malformed type definition
+================================================================================
+
+(package test-package)
+
+(define-type (T))
+
+--------------------------------------------------------------------------------
+
+error: Malformed type definition
+  --> test:3:13
+   |
+ 3 |  (define-type (T))
+   |               ^^^ nullary constructors should not have parentheses
+help: remove unnecessary parentheses
+ 3 | (define-type T)
+   |              -
+
+================================================================================
+103 Malformed constructor
+================================================================================
+
+(package test-package)
+
+(define-type (T :a)
+  ((T) :a))
+
+--------------------------------------------------------------------------------
+
+error: Malformed constructor
+  --> test:4:3
+   |
+ 3 |  (define-type (T :a)
+   |               ------ in this type definition
+ 4 |    ((T) :a))
+   |     ^^^ expected symbol
+
+================================================================================
+104 Malformed type definition
+================================================================================
+
+(package test-package)
+
+(define-type "T")
+
+--------------------------------------------------------------------------------
+
+error: Malformed type definition
+  --> test:3:13
+   |
+ 3 |  (define-type "T")
+   |               ^^^ expected symbol
+
+================================================================================
+105 Malformed type definition
+================================================================================
+
+(package test-package)
+
+(define-type ((T) :a))
+
+--------------------------------------------------------------------------------
+
+error: Malformed type definition
+  --> test:3:14
+   |
+ 3 |  (define-type ((T) :a))
+   |                ^^^ expected symbol
+help: remove parentheses
+ 3 | (define-type (T) :a)
+   |              ------
+
+================================================================================
+106 Malformed type definition
+================================================================================
+
+(package test-package)
+
+(define-type ("T" :a :b))
+
+--------------------------------------------------------------------------------
+
+error: Malformed type definition
+  --> test:3:14
+   |
+ 3 |  (define-type ("T" :a :b))
+   |                ^^^ expected symbol
+
+================================================================================
+107 Invalid type variable
+================================================================================
+
+(package test-package)
+
+(define-type (T (:a)))
+
+--------------------------------------------------------------------------------
+
+error: Invalid type variable
+  --> test:3:16
+   |
+ 3 |  (define-type (T (:a)))
+   |                  ^^^^ expected keyword symbol
+
+================================================================================
+108 Malformed constructor
+================================================================================
+
+(package test-package)
+
+(define-type (T :a)
+  0.5)
+
+--------------------------------------------------------------------------------
+
+error: Malformed constructor
+  --> test:4:2
+   |
+ 3 |  (define-type (T :a)
+   |               ------ in this type definition
+ 4 |    0.5)
+   |    ^^^ expected symbol
+
+================================================================================
+109 Duplicate repr attribute
+================================================================================
+
+(package test-package)
+
+(repr :enum)
+(repr :enum)
+(define-type T)
+
+--------------------------------------------------------------------------------
+
+error: Duplicate repr attribute
+  --> test:4:0
+   |
+ 3 |  (repr :enum)
+   |  ------------ previous attribute here
+ 4 |  (repr :enum)
+   |  ^^^^^^^^^^^^ repr attribute here
+ 5 |  (define-type T)
+   |  --------------- when parsing define-type
+
+================================================================================
+110 Invalid target for monomorphize attribute
+================================================================================
+
+(package test-package)
+
+(monomorphize)
+(define-type T)
+
+--------------------------------------------------------------------------------
+
+error: Invalid target for monomorphize attribute
+  --> test:3:0
+   |
+ 3 |  (monomorphize)
+   |  ^^^^^^^^^^^^^^ monomorphize must be attached to a define or declare form
+ 4 |  (define-type T)
+   |  --------------- when parsing define-type
+
+================================================================================
+111 Invalid target for inline attribute
+================================================================================
+
+(package test-package)
+
+(inline)
+(define-type T)
+
+--------------------------------------------------------------------------------
+
+error: Invalid target for inline attribute
+  --> test:3:0
+   |
+ 3 |  (inline)
+   |  ^^^^^^^^ inline must be attached to a define or declare form
+ 4 |  (define-type T)
+   |  --------------- when parsing define-type
+
+================================================================================
+112 define-type, multiple constructor docstrings
+================================================================================
+
+(package test-package)
+
+(define-type T
+  T1 "one docstring" "another docstring")
+
+--------------------------------------------------------------------------------
+
+error: Malformed type definition
+  --> test:4:21
+   |
+ 4 |    T1 "one docstring" "another docstring")
+   |                       ^^^^^^^^^^^^^^^^^^^ only one docstring allowed per constructor
+
+================================================================================
+113 define-type, multiple type docstrings
+================================================================================
+
+(package test-package)
+
+(define-type T
+  "This is a docstring"
+  "This is also a docstring")
+
+--------------------------------------------------------------------------------
+
+error: Malformed type definition
+  --> test:5:2
+   |
+ 5 |    "This is also a docstring")
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^^^ only one docstring allowed.
+help: remove additional docstring
+ 5 |   This is also a docstring)
+   |   ------------------------
+
+================================================================================
+114 Derive struct, class does not exist
+================================================================================
+
+(package test-package)
+
+(derive Quux)
+(define-struct Point
+  (x UFix)
+  (y UFix))
+
+--------------------------------------------------------------------------------
+
+ error: Cannot derive class QUUX for type POINT.
+  --> test:3:0
+   |
+ 3 |   (derive Quux)
+   |   ^^^^^^^^^^^^^ Class QUUX does not exist
+ 4 |   (define-struct Point
+   |  _^
+ 5 | |   (x UFix)
+ 6 | |   (y UFix))
+   | |___________^ when deriving class QUUX for type POINT.
+
+================================================================================
+115 Derive struct, deriver is not implemented
+================================================================================
+
+(package test-package)
+
+(define-class (Quuxableness :a))
+
+(derive Quuxableness)
+(define-struct Point
+  (x UFix)
+  (y UFix))
+
+--------------------------------------------------------------------------------
+
+ error: Cannot derive class QUUXABLENESS for type POINT.
+  --> test:5:0
+   |
+ 5 |   (derive Quuxableness)
+   |   ^^^^^^^^^^^^^^^^^^^^^ Class QUUXABLENESS does not exist
+ 6 |   (define-struct Point
+   |  _^
+ 7 | |   (x UFix)
+ 8 | |   (y UFix))
+   | |___________^ when deriving class QUUXABLENESS for type POINT.
+
+================================================================================
+116 Derive struct, no errors
+================================================================================
+
+(package test-package)
+
+(derive coalton-library/classes:Eq)
+(repr :native cl:integer)
+(define-type MyInt)
+
+--------------------------------------------------------------------------------
+
+error: Cannot derive class EQ for type MYINT.
+  --> test:3:0
+   |
+ 3 |  (derive coalton-library/classes:Eq)
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Type MYINT has no constructors
+ 4 |  (repr :native cl:integer)
+ 5 |  (define-type MyInt)
+   |  ^^^^^^^^^^^^^^^^^^^ when deriving class EQ for type MYINT.
+ 
+================================================================================
+117 Derive struct, no errors
+================================================================================
+
+(package test-package)
+
+(derive coalton-library/classes:Eq)
+(define-struct Point
+  (x UFix)
+  (y UFix))
+
+================================================================================
+118 Derive type, without symbols
+================================================================================
+
+(package test-package)
+
+(derive coalton-library/classes:Eq 1)
+(define-struct Point
+  (x UFix)
+  (y UFix))
+
+--------------------------------------------------------------------------------
+
+error: Malformed derive attribute
+  --> test:3:0
+   |
+ 3 |  (derive coalton-library/classes:Eq 1)
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected class arguments

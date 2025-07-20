@@ -52,75 +52,32 @@
                                (unless (== n 0)
                                  (loop-times (- n 1)))))))
         (loop-times 100)))"
-   '("foo" . "Unit"))
+   '("foo" . "Unit")))
 
-  (signals tc:tc-error
-    (check-coalton-types
-     "(define foo
-        (let ((invalid (the Integer
-                            (+ invalid 0))))
-          invalid))")))
+(deftest recursive-let-constant-propagation ()
+  "Test that constant let bindings are propagated to the other bindings. See GitHub issue #1442."
+  (check-coalton-types
+   "(define x
+      (let ((p (the UFix 3))
+            (q (1+ p)))
+        q))"
+   '("x" . "UFix"))
 
-(deftest recursively-construct-via-non-constructor-function ()
-  (signals tc:tc-error
-    (check-coalton-types
-     "(declare flipped-cons (List :elt -> :elt -> List :elt))
-      (define (flipped-cons list new-head)
-        (Cons new-head list))
+  (check-coalton-types
+   "(define x
+      (let ((q (1+ p))
+            (p (the UFix 3)))
+        q))"
+   '("x" . "UFix"))
 
-       (declare make-loop (:elt -> List :elt))
-       (coalton:define (make-loop elt)
-         (coalton:let ((loop (flipped-cons loop elt))) loop))")))
+  (is (= 3 (coalton:coalton (coalton:let ((a b) (b c) (c d) (d 3)) a))))
 
-(deftest recursively-construct-bad-repr-types ()
-  (signals tc:tc-error
-    (check-coalton-types
-     "(repr :transparent)
-      (define-type (MyLoop :elt) (MyLoop (MyLoop :elt)))
+  (is (= 3 (coalton:coalton (coalton:let ((a (coalton:let ((b c) (c d)) d)) (d 3)) a))))
 
-       (declare make-loop (Unit -> (MyLoop :any)))
-       (define (make-loop)
-         (let ((loop (MyLoop loop))) loop))"))
+  (let* ((start (/ (get-internal-real-time) internal-time-units-per-second))
+         (value (eval (read-from-string "(coalton:coalton (coalton:make-list 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0))")))
+         (end (/ (get-internal-real-time) internal-time-units-per-second)))
 
-  (signals tc:tc-error
-    (check-coalton-types
-     "(repr :native (cl:or cl:null mynullableloop))
-      (define-type (MyNullableLoop :elt)
-        (NonNull :elt)
-        (MyLoop (MyNullableLoop :elt)))
+    (is (< (- end start) 1))
+    (is (equalp value '(1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0)))))
 
-      (declare make-loop (Unit -> (MyNullableLoop :any)))
-      (define (make-loop)
-         (let ((lp (MyLoop lp)))
-           lp)))")))
-
-(deftest recursive-partial-constructor-application ()
-  (signals tc:tc-error
-    (check-coalton-types
-     "(define-type (PairedLoop :elt)
-        (PairedLoop (:elt coalton:-> (PairedLoop :elt)) :elt))
-
-      (declare make-partial-loop (Unit -> :elt -> (PairedLoop :elt)))
-      (define (make-partial-loop)
-        (let ((lp (PairedLoop lp))) lp))")))
-
-(deftest recursive-indirect-constructor-application ()
-  (signals tc:tc-error
-    (check-coalton-types
-     "(define-type (MyLoop :elt) (MyLoop (MyLoop :elt)))
-      (declare make-circular-list-with-deranged-shadowing (:elt -> (List :elt)))
-      (define (make-circular-list-with-deranged-shadowing elt)
-         (let ((MyLoop Cons))
-           (let ((lp (MyLoop elt lp)))
-             lp)))")))
-
-(deftest mutually-recursive-data-and-function ()
-  (signals tc:tc-error
-    (check-coalton-types
-     "(define-type LoopFn
-         (LoopFn (coalton:Unit coalton:-> LoopFn)))
-      (declare make-loop-fn (Unit -> LoopFn))
-      (define (make-loop-fn)
-        (let ((lp (LoopFn func))
-                       (func (fn () lp)))
-           lp)))")))

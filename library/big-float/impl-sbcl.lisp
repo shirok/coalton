@@ -205,12 +205,12 @@
       (lisp Big-Float (a)
         (sb-mpfr:coerce a 'sb-mpfr:mpfr-float))))
 
-  (define-instance (Into Single-Float Big-Float)
+  (define-instance (Into F32 Big-Float)
     (define (into a)
       (lisp Big-Float (a)
         (sb-mpfr:coerce a 'sb-mpfr:mpfr-float))))
 
-  (define-instance (Into Double-Float Big-Float)
+  (define-instance (Into F64 Big-Float)
     (define (into a)
       (lisp Big-Float (a)
         (sb-mpfr:coerce a 'sb-mpfr:mpfr-float))))
@@ -244,7 +244,7 @@
 
   (define-instance (Real Big-Float)
     (define (real-approx prec x)
-      (coalton-library/math/real::rational-approx prec x)))
+      (real-approx prec x)))
 
   (define-instance (Rational Big-Float)
     (define (to-fraction x)
@@ -269,7 +269,7 @@
           (/ (fromInt a) (fromInt b))
           (into (exact/ a b))))))
 
-(coalton-library/math/complex::%define-standard-complex-instances Big-Float)
+(complex::%define-standard-complex-instances Big-Float)
 
 (coalton-toplevel
   

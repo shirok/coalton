@@ -68,7 +68,7 @@
 
   (declare with-capacity (Hash :key => Integer -> Hashtable :key :value))
   (define (with-capacity capacity)
-    "Crate a new empty hashtable with a given capacity"
+    "Create a new empty hashtable with a given capacity"
     (match (%get-hash-test-funcs)
       ((Tuple test hash)
        (%make-hashtable test hash capacity))))
@@ -204,18 +204,12 @@
        (default)
        (map hash (entries table))))))
 
-(cl:define-condition make-hash-table-static-duplicate-keys (cl:error)
-  ((offending-key :initarg :offending-key
-                  :reader duplicate-offending-key)
-   (entry-a :initarg :entry-a
-            :reader duplicate-entry-a)
-   (entry-b :initarg :entry-b
-            :reader duplicate-entry-b))
+(cl:define-condition static-duplicate-key (cl:error)
+  ((duplicate-key :initarg :duplicate-key
+                  :reader duplicate-key))
   (:report (cl:lambda (c s)
-             (cl:format s "Statically-detected duplicate keys in `make-hash-table': key ~S applies to both ~S and ~S"
-                        (duplicate-offending-key c)
-                        (duplicate-entry-a c)
-                        (duplicate-entry-b c)))))
+             (cl:format s "Duplicate hashtable key: ~S"
+                        (duplicate-key c)))))
 
 (cl:defun find-duplicate-entry (elements cl:&key (test #'cl:equal) (key #'cl:first))
   (cl:declare (cl:type cl:function test key))
@@ -252,13 +246,11 @@ Examples:
   (cl:let* ((keys (cl:mapcar #'cl:first pairs))
             (values (cl:mapcar #'cl:second pairs))
             (ht (cl:gensym "HASH-TABLE-")))
-    (cl:multiple-value-bind (duplicatep dup-a dup-b)
+    (cl:multiple-value-bind (duplicatep dup-a)
         (find-duplicate-entry pairs)
       (cl:if duplicatep
-             (cl:error 'make-hash-table-static-duplicate-keys
-                       :offending-key (cl:first dup-a)
-                       :entry-a dup-a
-                       :entry-b dup-b)
+             (cl:error 'static-duplicate-key
+                       :duplicate-key (cl:first dup-a))
              `(progn
                 (let ,ht = (with-capacity ,(cl:length keys)))
                 ,@(cl:mapcar (cl:lambda (key val)

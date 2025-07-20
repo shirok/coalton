@@ -36,32 +36,27 @@
                                      "COALTON-TEST-COMPILE-PACKAGE")
                                  :use '("COALTON" "COALTON-PRELUDE"))))
     (unwind-protect
-         (let* ((stream (make-string-input-stream toplevel-string))
+         (let ((source (source:make-source-string toplevel-string)))
+           (with-open-stream (stream (source:source-stream source))
+             (let ((program (parser:with-reader-context stream
+                              (parser:read-program stream source))))
 
-                (file (se:make-file :stream stream :name "<test>"))
+               (multiple-value-bind (program env)
+                   (entry:entry-point program)
+                 (declare (ignore program))
 
-                (program (parser:with-reader-context stream
-                           (parser:read-program stream file))))
-
-           (multiple-value-bind (program env)
-               (entry:entry-point program)
-             (declare (ignore program))
-             
-             (when expected-types
-               (loop :for (unparsed-symbol . unparsed-type) :in expected-types
-                     :for symbol := (intern (string-upcase unparsed-symbol) *package*)
-
-                     :for stream := (make-string-input-stream unparsed-type)
-                     :for file := (se:make-file :stream stream :name "<unknown>")
-
-                     :for ast-type := (parser:parse-qualified-type
-                                       (eclector.concrete-syntax-tree:read stream)
-                                       file)
-                     :for parsed-type := (tc:parse-ty-scheme ast-type env file)
-                     :do (is (equalp
-                              (tc:lookup-value-type env symbol)
-                              parsed-type)))))
-
+                 (when expected-types
+                   (loop :for (unparsed-symbol . unparsed-type) :in expected-types
+                         :do (let ((symbol (intern (string-upcase unparsed-symbol) *package*))
+                                   (source (source:make-source-string unparsed-type)))
+                               (with-open-stream (stream (source:source-stream source))
+                                 (let* ((ast-type (parser:parse-qualified-type
+                                                   (eclector.concrete-syntax-tree:read stream)
+                                                   source))
+                                        (parsed-type (tc:parse-ty-scheme ast-type env)))
+                                   (is (tc:ty-scheme=
+                                        (tc:lookup-value-type env symbol)
+                                        parsed-type))))))))))
            (values))
       (delete-package *package*))))
 
@@ -97,28 +92,75 @@ Returns (values SOURCE-PATHNAME COMPILED-PATHNAME)."
   (merge-pathnames pathname (asdf:system-source-directory "coalton/tests")))
 
 (defun collect-compiler-error (program)
-  (with-input-from-string (stream program)
-    (handler-case
-        (progn
-          (entry:compile stream "test")
-          nil)
-      (se:source-base-error (c)
-        (string-trim '(#\Space #\Newline)
-                     (princ-to-string c))))))
+  (let ((source (source:make-source-string program :name "test"))
+        (saved-environment entry:*global-environment*))
+    (unwind-protect
+         (handler-case
+             (handler-bind ((simple-error
+                              (lambda (c)
+                                (if (search "incompatibly with the current definition"
+                                            (princ-to-string c))
+                                    (progn
+                                      (format t "~%;; Allowing redefinition and continuing.~%")
+                                      (invoke-restart 'continue))
+                                    (signal c)))))
+               (entry:compile source)
+               nil)
+           (source:source-warning (c)
+             (string-trim '(#\Space #\Newline)
+                          (princ-to-string c)))
+           (error (c)
+             (string-trim '(#\Space #\Newline)
+                          (princ-to-string c))))
+      (setf entry:*global-environment* saved-environment))))
 
-(defun run-suite (pathname)
-  (let ((file (test-file pathname)))
-    (loop :for (line description program expected-error)
-            :in (coalton-tests/loader:load-suite file)
-          :for generated-error := (collect-compiler-error program)
-          :do (cond ((null generated-error)
-                     (is nil "program should have failed to compile: ~A" description))
-                    (t
-                     (check-string= (format nil "program text.~%~
+;;; The structure of test definition files is described in the header
+;;; of ./loader.lisp
+
+(defun run-test-file (pathname)
+  "Run the test file at PATHNAME."
+  (format t "~&;; --- Running test file: ~A~%" pathname)
+  (let ((file (test-file pathname))
+        (coalton-impl/settings:*coalton-print-unicode* nil))
+    (loop :for (line number flags description program expected-error)
+            :in (coalton-tests/loader:load-test-file file)
+          :unless (position :disable flags)
+            :do (let ((generated-error (collect-compiler-error program)))
+                  (cond ((null generated-error)
+                         (is (zerop (length expected-error))
+                             "program should have failed to compile: ~A" description))
+                        (t
+                         (check-string= (format nil "error text.~%~
 input file: ~A~%~
 line number: ~A~%~
-test case: ~A~%~
-expected error (A) and generated error (B)"
-                                            file line description)
-                                    expected-error
-                                    generated-error))))))
+test number: ~A~%~
+test header: ~A~%~
+~%~
+Rerun single test case with:~%~
+  (coalton-tests:run-test ~S ~A)~%~
+~A~%~
+~A"
+                                                file line
+                                                (or number "(unassigned)")
+                                                description
+                                                pathname
+                                                (or number "N")
+                                                (if number "" "after assigning a number to this test case")
+                                                (if (zerop (length expected-error))
+                                                    "unexpected error"
+                                                    "expected error (A) and generated error (B)"))
+                                        expected-error
+                                        generated-error)))))))
+
+(defun run-test (pathname test-number)
+  "Run the test case TEST-NUMBER in the test file at PATHNAME without binding any condition handlers.
+This exists to simplify access to point-of-error debugging."
+  (let ((file (test-file pathname))
+        (run? nil))
+    (loop :for (line number flags description program expected-error)
+            :in (coalton-tests/loader:load-test-file file)
+          :when (eq test-number number)
+            :do (entry:compile (source:make-source-string program :name "test"))
+                (setf run? t))
+    (unless run?
+      (error "Test not found: ~A" test-number))))

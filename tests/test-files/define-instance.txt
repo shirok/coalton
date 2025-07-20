@@ -1,0 +1,366 @@
+================================================================================
+1 Define instance
+================================================================================
+
+(package coalton-unit-tests)
+
+(define-class (C-di1 :a))
+
+(define-instance (C-di1 :a))
+
+================================================================================
+2 Define instance
+================================================================================
+
+(package coalton-unit-tests)
+
+(define-class (C-di2 :a :b))
+
+(define-instance (C-di2 :a :b))
+
+================================================================================
+3 Define instance
+================================================================================
+
+(package coalton-unit-tests)
+
+(define-class (C-di3 :a))
+
+(define-class (C2-di3 :a :b))
+
+(define-instance (C-di3 :a => C2-di3 :a :b))
+
+================================================================================
+4 Define instance
+================================================================================
+
+(package coalton-unit-tests)
+
+(define-class (C-di4 :a))
+
+(define-class (C2-di4 :a :b))
+
+(define-instance ((C-di4 :a) (C-di4 :b) => C2-di4 :a :b))
+
+================================================================================
+5 Define instance
+================================================================================
+
+(package coalton-unit-tests/prelude
+  (import coalton-prelude))
+
+(define-class (M-di5 :a)
+  (f-di5 (:a -> UFix)))
+
+(define-instance (M-di5 :a)
+  (define (f-di5 x) 1))
+
+================================================================================
+6 Define instance
+================================================================================
+
+(package coalton-unit-tests/define-instance-6
+  (import coalton-prelude))
+
+(define-class (C-di6 :a)
+  (f-di6 (:a -> :a))
+  (g-di6 :a))
+
+(define-instance (Num :a => C-di6 :a)
+  (define (f-di6 x) 1)
+  (define g-di6 1))
+
+================================================================================
+7 Define instance
+================================================================================
+
+(package coalton-unit-tests)
+
+(define-class (C-di7 :a))
+
+(define-instance (C-di7 :a => (C-di7 (List :a))))
+
+================================================================================
+8 Define instance
+================================================================================
+
+(package coalton-unit-tests)
+
+(define-class (C-di8 :a))
+
+(define-instance ((C-di8 :a) => (C-di8 (List :a))))
+
+================================================================================
+9 Define instance
+================================================================================
+
+(package coalton-unit-tests/prelude
+  (import coalton-prelude))
+
+(define-type C-di9 X-di9 Y-di9 Z-di9)
+
+(define-instance (Eq C-di9)
+  (define (== _ _) True))
+
+================================================================================
+10 Define instance
+================================================================================
+
+(package coalton-unit-tests)
+
+;; see issue #1340
+
+(define-type (T-di10 :a))
+(define-class (P-di10 :a))
+(define-class (C-di10 :a :b))
+(define-class ((P-di10 :a) (C-di10 :b :a) => PC-di10 :b :a))
+(define-instance (C-di10 (T-di10 :a) :a))
+(define-instance (P-di10 :a => PC-di10 (T-di10 :a) :a))
+
+================================================================================
+11 Define instance with inline
+================================================================================
+
+(package coalton-unit-tests/prelude
+  (import coalton-prelude))
+
+(define-type D-di11 X-di11 Y-di11 Z-di11)
+
+(define-instance (Eq D-di11)
+  (inline)
+  (define (== _ _) True))
+
+================================================================================
+100 Malformed method definition
+================================================================================
+
+(package test-package)
+
+(define-instance (C :a)
+  5)
+
+--------------------------------------------------------------------------------
+
+error: Malformed method definition
+  --> test:4:2
+   |
+ 3 |  (define-instance (C :a)
+   |                   ------ when parsing instance
+ 4 |    5)
+   |    ^ expected list
+
+================================================================================
+101 Malformed method definition
+================================================================================
+
+(package test-package)
+
+(define-instance (C :a)
+  (1 2 . 3))
+
+--------------------------------------------------------------------------------
+
+error: Malformed method definition
+  --> test:4:2
+   |
+ 3 |  (define-instance (C :a)
+   |                   ------ when parsing instance
+ 4 |    (1 2 . 3))
+   |    ^^^^^^^^^ unexpected dotted list
+
+================================================================================
+102 Malformed method definition
+================================================================================
+
+(package test-package)
+
+(define-instance (C :a)
+  (f x y))
+
+--------------------------------------------------------------------------------
+
+error: Malformed method definition
+  --> test:4:3
+   |
+ 3 |  (define-instance (C :a)
+   |                   ------ when parsing instance
+ 4 |    (f x y))
+   |     ^ expected method definition
+
+================================================================================
+103 Malformed method definition
+================================================================================
+
+(package test-package)
+
+(define-instance (C :a)
+  (define))
+
+--------------------------------------------------------------------------------
+
+error: Malformed method definition
+  --> test:4:2
+   |
+ 3 |  (define-instance (C :a)
+   |                   ------ when parsing instance
+ 4 |    (define))
+   |    ^^^^^^^^ expected definition name
+
+================================================================================
+104 Malformed instance definition
+================================================================================
+
+(package test-package)
+
+(define-instance (C :a . :b))
+
+--------------------------------------------------------------------------------
+
+error: Malformed instance definition
+  --> test:3:17
+   |
+ 3 |  (define-instance (C :a . :b))
+   |                   ^^^^^^^^^^^ unexpected dotted list
+
+================================================================================
+105 Malformed instance definition
+================================================================================
+
+(package test-package)
+
+(define-instance 5)
+
+--------------------------------------------------------------------------------
+
+error: Malformed instance definition
+  --> test:3:17
+   |
+ 3 |  (define-instance 5)
+   |                   ^ expected a list
+
+================================================================================
+106 Malformed instance definition
+================================================================================
+
+(package test-package)
+
+(define-instance)
+
+--------------------------------------------------------------------------------
+
+error: Malformed instance definition
+  --> test:3:16
+   |
+ 3 |  (define-instance)
+   |                  ^ expected an instance head
+
+================================================================================
+107 Malformed instance head
+================================================================================
+
+(package test-package)
+
+(define-instance (=> C :a :b))
+
+--------------------------------------------------------------------------------
+
+error: Malformed instance head
+  --> test:3:18
+   |
+ 3 |  (define-instance (=> C :a :b))
+   |                    ^^ unexpected `=>`
+help: remove the `=>`
+ 3 | (define-instance ( C :a :b))
+   |                   
+
+================================================================================
+108 Malformed instance head
+================================================================================
+
+(package test-package)
+
+(define-instance (C :a :b =>))
+
+--------------------------------------------------------------------------------
+
+error: Malformed instance head
+  --> test:3:26
+   |
+ 3 |  (define-instance (C :a :b =>))
+   |                            ^^ unexpected `=>`
+help: remove the `=>`
+ 3 | (define-instance (C :a :b ))
+   |                           
+
+================================================================================
+109 Invalid attribute for define-instance
+================================================================================
+
+(package test-package)
+
+(repr :enum)
+(define-instance (C :a))
+
+--------------------------------------------------------------------------------
+
+error: Invalid attribute for define-instance
+  --> test:3:0
+   |
+ 3 |  (repr :enum)
+   |  ^^^^^^^^^^^^ define-instance cannot have attributes
+ 4 |  (define-instance (C :a))
+   |  ------------------------ when parsing define-instance
+
+================================================================================
+110 Malformed instance definition
+================================================================================
+
+(package test-package)
+
+(define-instance (C :a => (C (List :a)) :b))
+
+--------------------------------------------------------------------------------
+
+error: Malformed instance definition
+  --> test:3:40
+   |
+ 3 |  (define-instance (C :a => (C (List :a)) :b))
+   |                                          ^^ unexpected form
+
+================================================================================
+111 Malformed instance inline
+================================================================================
+
+(package test-package)
+
+(define-instance (C :a)
+  (inline))
+
+--------------------------------------------------------------------------------
+
+error: Inline attribute must be attached to a method definition
+  --> test:4:2
+   |
+ 4 |    (inline))
+   |    ^^^^^^^^ inline attribute here
+
+
+================================================================================
+112 Duplicate instance inline
+================================================================================
+
+(package test-package)
+
+(define-instance (C :a)
+  (inline)
+  (inline))
+
+--------------------------------------------------------------------------------
+
+error: Duplicate inline attribute
+  --> test:5:2
+   |
+ 4 |    (inline)
+   |    -------- previous attribute here
+ 5 |    (inline))
+   |    ^^^^^^^^ inline attribute here

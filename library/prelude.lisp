@@ -2,33 +2,11 @@
 ;;;;
 ;;;; Collections of packages
 
-(uiop:define-package #:coalton-library/math
-  (:use-reexport
-   #:coalton-library/math/arith
-   #:coalton-library/math/num
-   #:coalton-library/math/bounded
-   #:coalton-library/math/conversions
-   #:coalton-library/math/fraction
-   #:coalton-library/math/integral
-   #:coalton-library/math/real
-   #:coalton-library/math/complex
-   #:coalton-library/math/elementary
-   #:coalton-library/math/dual))
-
-#+sb-package-locks
-(sb-ext:lock-package "COALTON-LIBRARY/MATH")
-
 (uiop:define-package #:coalton-prelude
   (:use-reexport
    #:coalton-library/classes
    #:coalton-library/builtin
    #:coalton-library/functions)
-
-  (:import-from
-   #:coalton-library/hash
-   #:hash)
-  (:export
-   #:hash)
 
   (:import-from
    #:coalton-library/math/arith
@@ -262,7 +240,13 @@
    (#:vector #:coalton-library/vector)
    (#:slice #:coalton-library/slice)
    (#:hashtable #:coalton-library/hashtable)
+   (#:id #:coalton-library/monad/identity)
    (#:st #:coalton-library/monad/state)
+   (#:env #:coalton-library/monad/environment)
+   (#:resultt #:coalton-library/monad/resultt)
+   (#:optionalt #:coalton-library/monad/optionalt)
    (#:iter #:coalton-library/iterator)
    (#:sys #:coalton-library/system)
-   (#:file #:coalton-library/file)))
+   (#:file #:coalton-library/file)
+   (#:experimental #:coalton-library/experimental)
+   (#:loops #:coalton-library/experimental/loops)))

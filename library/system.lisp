@@ -3,10 +3,23 @@
    #:coalton
    #:coalton-library/builtin
    #:coalton-library/classes)
+  (:local-nicknames
+   (#:math #:coalton-library/math))
   (:export
    #:gc
-   #:time
    #:sleep)
+  (:export
+   #:get-real-time
+   #:internal-time-units-per-second
+   #:time-units->seconds
+   #:time-units->rounded-microseconds
+   #:monotonic-bytes-consed
+
+   #:time
+   #:space
+
+   #:MeteredResult
+   #:spacetime)
   (:export
 
    #:LispCondition
@@ -40,27 +53,123 @@
       (trivial-garbage:gc :full cl:t)
       Unit))
 
+  (declare sleep ((math:Rational :a) => :a -> Unit))
+  (define (sleep n)
+    "Sleep for `n` seconds, where `n` can be of any type with an instance of `Rational`.
+
+Sleep uses type class `Rational`'s `best-approx` instead of `Real`'s `real-approx` because it handles the approximation without arbitrary precision. The only `Real` type excluded by this decision is `CReal`."
+    (if (math:negative? n)
+        (error "sleep must be a nonnegative number.")
+        (let ((frac (math:best-approx n)))
+          (lisp Unit (frac)
+            (cl:sleep frac)
+            Unit)))))
+
+;;;
+;;; Pofiling
+;;;
+
+(coalton-toplevel
+
+  (declare get-run-time (Unit -> Integer))
+  (define (get-run-time)
+    "Gets the run-time in internal time units. This is implementation specific: it may measure real time, run time, CPU cycles, or some other quantity.
+
+The difference between two successive calls to this function represents quantity accumulated during that period of time.
+
+This function is not exported as its output is too implementation specific."
+    (lisp Integer ()
+      (cl:get-internal-run-time)))
+
+  (declare get-real-time (Unit -> Integer))
+  (define (get-real-time)
+    "Gets the real-time in internal time units. The difference between two successive calls to this function represents the time that has elapsed."
+    (lisp Integer ()
+      (cl:get-internal-real-time)))
+
+  (declare internal-time-units-per-second Integer)
+  (define internal-time-units-per-second
+    "The number of internal time units per second. This is implementation specific."
+    (lisp Integer ()
+      cl:internal-time-units-per-second))
+
+  (declare time-units->seconds (Integer -> Fraction))
+  (define (time-units->seconds t)
+    "Converts internal time units into `Fraction` seconds."
+    (math:exact/ t internal-time-units-per-second))
+
+  (declare time-units->rounded-microseconds (Integer -> Integer))
+  (define (time-units->rounded-microseconds t)
+    "Converts internal time units into an integer number of rounded microseconds."
+    (math:round/ (* 1000000 t)
+                 internal-time-units-per-second))
+
+  (declare monotonic-bytes-consed (Unit -> (Optional Integer)))
+  (define (monotonic-bytes-consed)
+    "Returns the number of bytes consed since some unspecified point in time.
+
+The difference between two successive calls to this function represents the number of bytes consed in that period of time."
+    #+sbcl
+    (Some (lisp Integer ()
+            (sb-ext:get-bytes-consed)))
+    #-sbcl
+    None)
+
+  ;;;
+  ;;; Function instrumentation
+  ;;;
+
   (declare time ((Unit -> :a) -> (Tuple :a Integer)))
   (define (time f)
     "Run the thunk `f` and return a tuple containing its value along with the run time in microseconds.
 
 While the result will always contain microseconds, some implementations may return a value rounded to less precision (e.g., rounded to the nearest second or millisecond)."
-    (let start = (lisp Integer () (cl:get-internal-run-time)))
+    (let start = (get-real-time))
     (let value = (f))
-    (let end   = (lisp Integer () (cl:get-internal-run-time)))
-    (Tuple value
-           (lisp Integer (start end)
-             (cl:values
-              (cl:round
-               (cl:* 1000000 (cl:- end start))
-               cl:internal-time-units-per-second)))))
+    (let end   = (get-real-time))
+    (Tuple value (time-units->rounded-microseconds (- end start))))
 
-  (declare sleep (Integer -> Unit))
-  (define (sleep n)
-    "Sleep for `n` seconds."
-    (lisp Unit (n)
-      (cl:sleep n)
-      Unit)))
+  (declare space ((Unit -> :a) -> (Tuple :a (Optional Integer))))
+  (define (space f)
+    "Run the thunk `f` and return a tuple containing its value along with the approximate number of bytes consed during the course of executing f.
+
+The amount of space used may be peculiar to the implementation, such as rounding to certain page boundaries.
+
+A garbage collection will be forced prior to invoking `f`."
+    (gc)
+    (let start = (monotonic-bytes-consed))
+    (let value = (f))
+    (let end   = (monotonic-bytes-consed))
+    (Tuple value (liftA2 - end start)))
+
+  (define-struct (MeteredResult :a)
+    "Function output with space and timing metedata."
+    (result
+     "The result of the function." :a)
+    (time-elapsed
+     "The real time elapsed running the function (in internal time units)." Integer)
+    (bytes-consed
+     "The number of bytes consed during the run." (Optional Integer)))
+
+  (declare spacetime ((Unit -> :a) -> (MeteredResult :a)))
+  (define (spacetime f)
+    "Runs a function, gathering space and timing information and returning a `MeteredResults` object.
+
+Garbage collection will be performed before profiling is performed."
+    (gc)
+    ;; The order of these bindings ensures that slight inaccuracy of
+    ;; the measurements is shared across both bytes consed and
+    ;; elapsed time.
+    (let start-bytes-consed = (monotonic-bytes-consed))
+    (let start-real-time    = (get-real-time))
+    (let value              = (f))
+    (let end-bytes-consed   = (monotonic-bytes-consed))
+    (let end-real-time      = (get-real-time))
+    (MeteredResult
+     value
+     (- end-real-time start-real-time)
+     (liftA2 - end-bytes-consed start-bytes-consed))))
+
 
 ;;;
 ;;; Gathering System information

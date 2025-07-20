@@ -1,0 +1,126 @@
+================================================================================
+100 Malformed declaration
+================================================================================
+
+(package test-package)
+
+(declare)
+
+--------------------------------------------------------------------------------
+
+error: Malformed declaration
+  --> test:3:0
+   |
+ 3 |  (declare)
+   |  ^^^^^^^^^ expected body
+
+================================================================================
+101 Malformed declaration
+================================================================================
+
+(package test-package)
+
+(declare x)
+
+--------------------------------------------------------------------------------
+
+error: Malformed declaration
+  --> test:3:0
+   |
+ 3 |  (declare x)
+   |  ^^^^^^^^^^^ expected declared type
+
+================================================================================
+102 Malformed declaration
+================================================================================
+
+(package test-package)
+
+(declare x (T -> T) z)
+
+--------------------------------------------------------------------------------
+
+error: Malformed declaration
+  --> test:3:20
+   |
+ 3 |  (declare x (T -> T) z)
+   |                      ^ unexpected trailing form
+
+================================================================================
+103 Malformed declaration
+================================================================================
+
+(package test-package)
+
+(declare "x" 5)
+
+--------------------------------------------------------------------------------
+
+error: Malformed declaration
+  --> test:3:9
+   |
+ 3 |  (declare "x" 5)
+   |           ^^^ expected symbol
+
+================================================================================
+104 Invalid target for repr attribute
+================================================================================
+
+(package test-package)
+
+(repr :enum)
+(declare x T)
+
+--------------------------------------------------------------------------------
+
+error: Invalid target for repr attribute
+  --> test:3:0
+   |
+ 3 |  (repr :enum)
+   |  ^^^^^^^^^^^^ repr must be attached to a define-type
+ 4 |  (declare x T)
+   |  ------------- when parsing declare
+
+================================================================================
+105 Duplicate monomorphize attribute
+================================================================================
+
+(package test-pacakage)
+
+(monomorphize)
+(monomorphize)
+(declare f T)
+
+--------------------------------------------------------------------------------
+
+error: Duplicate monomorphize attribute
+  --> test:4:0
+   |
+ 3 |  (monomorphize)
+   |  -------------- previous attribute here
+ 4 |  (monomorphize)
+   |  ^^^^^^^^^^^^^^ monomorphize attribute here
+ 5 |  (declare f T)
+   |  ------------- when parsing declare
+
+================================================================================
+Duplicate inline attribute
+================================================================================
+
+(package test-package)
+
+(inline)
+(inline)
+(declare f T)
+
+--------------------------------------------------------------------------------
+
+error: Duplicate inline attribute
+  --> test:4:0
+   |
+ 3 |  (inline)
+   |  -------- previous attribute here
+ 4 |  (inline)
+   |  ^^^^^^^^ inline attribute here
+ 5 |  (declare f T)
+   |  ------------- when parsing declare

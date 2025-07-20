@@ -106,7 +106,7 @@
 
 ;; Test defaulting and context reduction
 (define-test test-defaulting ()
-  (is (== (+ (Some (Some (the Integer 1))) (Some (Some 2))) (Some (Some 3)))))
+  (is (== (liftA2 (liftA2 +) (Some (Some (the Integer 1))) (Some (Some 2))) (Some (Some 3)))))
 
 
 ;; Test that explicit type declarations in let bindings work
@@ -180,7 +180,7 @@
 
 (define-test test-gh-973 ()
     (is (== (Many (vector:make (Single "hello")))
-                     (Many (vector:make (Single "hello"))))))
+            (Many (vector:make (Single "hello"))))))
 
 ;; Test accessors on transparent structs
 (coalton-toplevel
@@ -191,3 +191,18 @@
 (define-test test-transparent-wrapper ()
   (is (== (make-list "x")
           (map .inner (make-list (TransparentWrapper "x"))))))
+
+;; Test iter:into-iter (see i1198)
+
+(coalton-toplevel
+  (define (gh-974)
+    (iter:into-iter iter:Empty))
+  (define (gh-975)
+    (iter:into-iter Nil))
+  (define (gh-976)
+    (iter:into-iter (iter:into-iter iter:Empty))))
+
+(define-test test-into-iter-iter-empty ()
+  (is (none? (iter:next! (gh-974))))
+  (is (none? (iter:next! (gh-975))))
+  (is (none? (iter:next! (gh-976)))))

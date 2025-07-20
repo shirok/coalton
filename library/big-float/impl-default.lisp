@@ -299,7 +299,7 @@
           (* (fromInt a) (reciprocal (fromInt b)))
           (normalize (BFValue (Dyadic (div (lsh a p) b) (negate p)))))))
 
-  (define-instance (Into Single-Float Big-Float)
+  (define-instance (Into F32 Big-Float)
     (define (into a)
       (cond
         ((== a infinity) BFInf)
@@ -314,7 +314,7 @@
                      BFNegZero
                      (BFValue (Dyadic (cl:* s n) k))))))))))
 
-  (define-instance (Into Double-Float Big-Float)
+  (define-instance (Into F64 Big-Float)
     (define (into a)
       (cond
         ((== a infinity) BFInf)
@@ -352,7 +352,7 @@
         ((BFNegInf) (error "Cannot rationalize -Inf"))
         ((BFNaN) (error "Cannot rationalize NaN"))))
     (define (best-approx x)
-      (coalton-library/math/real::rational-approx (get-precision) x)))
+      (real-approx (get-precision) x)))
 
   (define-instance (Quantizable Big-Float)
     (define (proper x)
@@ -434,7 +434,7 @@
       ((BFInf) 0)
       (_ BFNaN))))
 
-(coalton-library/math/complex::%define-standard-complex-instances Big-Float)
+(complex::%define-standard-complex-instances Big-Float)
 
 (coalton-toplevel
   ;; SeriesSplit/SeriesResult could be extended to any ring (e.g. polynomials)

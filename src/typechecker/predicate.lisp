@@ -5,6 +5,7 @@
    #:coalton-impl/typechecker/types
    #:coalton-impl/typechecker/substitutions)
   (:local-nicknames
+   (#:source #:coalton-impl/source)
    (#:util #:coalton-impl/util)
    (#:settings #:coalton-impl/settings))
   (:export
@@ -12,13 +13,13 @@
    #:make-ty-predicate                  ; CONSTRUCTOR
    #:ty-predicate-class                 ; ACCESSOR
    #:ty-predicate-types                 ; ACCESSOR
-   #:ty-predicate-source                ; ACCESSOR
    #:ty-predicate-p                     ; FUNCTION
    #:ty-predicate-list                  ; TYPE
    #:qualified-ty                       ; STRUCT
    #:make-qualified-ty                  ; CONSTRUCTOR
    #:qualified-ty-predicates            ; ACCESSOR
    #:qualified-ty-type                  ; ACCESSOR
+   #:qualified-ty=                      ; FUNCTION
    #:qualified-ty-list                  ; TYPE
    #:remove-source-info                 ; FUNCTION
    #:static-predicate-p                 ; FUNCTION
@@ -35,12 +36,15 @@
 
 (defstruct ty-predicate
   "A type predicate indicating that TYPE is of the CLASS"
-  (class (util:required 'class) :type symbol         :read-only t)
-  (types (util:required 'types) :type ty-list        :read-only t)
-  (source nil                   :type (or cons null) :read-only t))
+  (class    (util:required 'class) :type symbol                    :read-only t)
+  (types    (util:required 'types) :type ty-list                   :read-only t)
+  (location nil                    :type (or source:location null) :read-only t))
 
 (defmethod make-load-form ((self ty-predicate) &optional env)
   (make-load-form-saving-slots self :environment env))
+
+(defmethod source:location ((self ty-predicate))
+  (ty-predicate-location self))
 
 (defun ty-predicate-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -65,6 +69,12 @@
 (defstruct qualified-ty
   (predicates (util:required 'predicates) :type ty-predicate-list :read-only t)
   (type       (util:required 'type)       :type ty                :read-only t))
+
+(defun qualified-ty= (qualified-ty1 qualified-ty2)
+  (and (equalp (qualified-ty-predicates qualified-ty1)
+               (qualified-ty-predicates qualified-ty2))
+       (ty= (qualified-ty-type qualified-ty1)
+            (qualified-ty-type qualified-ty2))))
 
 (defmethod make-load-form ((self qualified-ty) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -93,7 +103,7 @@
     (make-ty-predicate
      :class (ty-predicate-class pred)
      :types (ty-predicate-types pred)
-     :source nil))
+     :location nil))
 
   (:method ((qual-ty qualified-ty))
     (make-qualified-ty
@@ -110,7 +120,7 @@
   (make-ty-predicate
    :class (ty-predicate-class type)
    :types (apply-substitution subst-list (ty-predicate-types type))
-   :source (ty-predicate-source type)))
+   :location (ty-predicate-location type)))
 
 (defmethod apply-ksubstitution (subs (type ty-predicate))
   (declare (type ksubstitution-list subs))

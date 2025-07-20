@@ -46,14 +46,14 @@
   ;; Using tail-recursion
   (declare leibniz-rec (UFix -> Double-Float))
   (define (leibniz-rec n)
-    (let ((declare rec (UFix -> UFix -> Double-Float -> Double-Float))
-          (rec (fn (n k r)
+    (let ((declare %rec (UFix -> UFix -> Double-Float -> Double-Float))
+          (%rec (fn (n k r)
                  (if (== k n)
                      r
-                     (rec n (+ k 1)
-                          (+ r (inexact/ (if (odd? k) -1 1)
-                                         (tointeger (+ (* 2 k) 1)))))))))
-      (* 4 (rec n 0 0))))
+                     (%rec n (+ k 1)
+                           (+ r (inexact/ (if (odd? k) -1 1)
+                                          (tointeger (+ (* 2 k) 1)))))))))
+      (* 4 (%rec n 0 0))))
 
   ;; Using mutable cell
   (declare leibniz-cell (UFix -> Double-Float))

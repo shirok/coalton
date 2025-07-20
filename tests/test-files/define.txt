@@ -1,0 +1,283 @@
+================================================================================
+1 Define
+================================================================================
+
+(package coalton-unit-tests)
+
+(define x "hi")
+
+================================================================================
+2 Define with docstring
+================================================================================
+
+(package coalton-unit-tests)
+
+(define x
+  "hello"
+  2)
+
+================================================================================
+3 Define (?)
+================================================================================
+
+(package coalton-unit-tests)
+
+(define x
+  "hello"
+  1
+  2
+  3)
+
+================================================================================
+4 Define with monomorphize attribute
+================================================================================
+
+(package coalton-unit-tests)
+
+(monomorphize)
+(define x 5)
+
+================================================================================
+5 Define with inline attribute
+================================================================================
+
+(package coalton-unit-tests)
+
+(inline)
+(define x 5)
+
+================================================================================
+6 Define with inline constructor
+================================================================================
+
+(package coalton-unit-tests/prelude
+  (import coalton-prelude))
+
+(define (f (Tuple x _y)) x)
+
+================================================================================
+7 Declare with inline attribute and define
+================================================================================
+
+(package coalton-unit-tests)
+
+(declare y Integer)
+(inline)
+(define y 3)
+
+================================================================================
+8 Declare after inline attribute and define
+================================================================================
+
+(package coalton-unit-tests)
+
+(inline)
+(declare z Integer)
+(define z 4)
+
+================================================================================
+100 Unknown type
+================================================================================
+
+(package coalton-unit-tests)
+
+(declare f (unknown -> ufix))
+(define (f x) x)
+
+--------------------------------------------------------------------------------
+
+error: Unknown type
+  --> test:3:12
+   |
+ 3 |  (declare f (unknown -> ufix))
+   |              ^^^^^^^ unknown type UNKNOWN
+
+================================================================================
+101 Duplicate definition
+================================================================================
+
+(package coalton-unit-tests)
+
+(define-type BigType)
+
+(define-struct BigType
+  (wow String))
+
+--------------------------------------------------------------------------------
+
+error: Duplicate type definitions
+  --> test:3:0
+   |
+ 3 |   (define-type BigType)
+   |   ^^^^^^^^^^^^^^^^^^^^^ first definition here
+ 4 |   
+ 5 |   (define-struct BigType
+   |  _^
+ 6 | |   (wow String))
+   | |_______________^ second definition here
+
+================================================================================
+Malformed definition
+================================================================================
+
+(package test-package)
+
+(define)
+
+--------------------------------------------------------------------------------
+
+error: Malformed definition
+  --> test:3:0
+   |
+ 3 |  (define)
+   |  ^^^^^^^^ expected define body
+
+================================================================================
+Invalid variable
+================================================================================
+
+(package test-package)
+
+(define "x" 1.5)
+
+--------------------------------------------------------------------------------
+
+error: Invalid variable
+  --> test:3:8
+   |
+ 3 |  (define "x" 1.5)
+   |          ^^^ expected identifier
+
+================================================================================
+Duplicate monomorphize attribute
+================================================================================
+
+(package test-package)
+
+(monomorphize)
+(monomorphize)
+(define f x)
+
+--------------------------------------------------------------------------------
+
+error: Duplicate monomorphize attribute
+  --> test:4:0
+   |
+ 3 |  (monomorphize)
+   |  -------------- previous attribute here
+ 4 |  (monomorphize)
+   |  ^^^^^^^^^^^^^^ monomorphize attribute here
+ 5 |  (define f x)
+   |  ------------ when parsing define
+
+================================================================================
+Duplicate inline attribute
+================================================================================
+
+(package test-package)
+
+(inline)
+(inline)
+(define f x)
+
+--------------------------------------------------------------------------------
+
+error: Duplicate inline attribute
+  --> test:4:0
+   |
+ 3 |  (inline)
+   |  -------- previous attribute here
+ 4 |  (inline)
+   |  ^^^^^^^^ inline attribute here
+ 5 |  (define f x)
+   |  ------------ when parsing define
+
+================================================================================
+Malformed definition
+================================================================================
+
+(package test-package)
+
+(define x)
+
+--------------------------------------------------------------------------------
+
+error: Malformed definition
+  --> test:3:0
+   |
+ 3 |  (define x)
+   |  ^^^^^^^^^^ expected value
+
+================================================================================
+Malformed function definition
+================================================================================
+
+(package test-package)
+
+(define (0.5 x y) 2)
+
+--------------------------------------------------------------------------------
+
+error: Malformed function definition
+  --> test:3:9
+   |
+ 3 |  (define (0.5 x y) 2)
+   |           ^^^ expected symbol
+
+================================================================================
+Invalid pattern
+================================================================================
+
+(package test-parser)
+
+(define (f (0.5) x) 1)
+
+--------------------------------------------------------------------------------
+
+error: Invalid pattern
+  --> test:3:12
+   |
+ 3 |  (define (f (0.5) x) 1)
+   |              ^^^ invalid constructor in pattern
+
+================================================================================
+Invalid target for repr attribute
+================================================================================
+
+(package test-package)
+
+(repr :enum)
+(define f x)
+
+--------------------------------------------------------------------------------
+
+error: Invalid target for repr attribute
+  --> test:3:0
+   |
+ 3 |  (repr :enum)
+   |  ^^^^^^^^^^^^ repr must be attached to a define-type
+ 4 |  (define f x)
+   |  ------------ when parsing define
+
+================================================================================
+Unknown variable
+================================================================================
+
+(package test-package)
+
+(define-type DataType
+  (Data1 Integer))
+
+(define (return-data int)
+  (DataType int))
+
+--------------------------------------------------------------------------------
+
+error: Unknown variable DATATYPE
+  --> test:7:3
+   |
+ 7 |    (DataType int))
+   |     ^^^^^^^^ unknown variable DATATYPE
+help: Did you mean a constructor of type DATATYPE?
+ 7 |   (DataType int))
+   |    --------

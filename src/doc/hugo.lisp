@@ -1,50 +1,45 @@
-(in-package #:coalton-doc)
+;;;; Hugo docs generator for coalton-lang.github.io
 
-;;
-;; Hugo docs generator for coalton-lang.github.io
-;;
+(defpackage #:coalton/doc/hugo
+  (:documentation "Hugo backend for coalton doc generator.")
+  (:use
+   #:cl
+   #:coalton/doc/base
+   #:coalton/doc/model))
 
-(defvar *coalton-docs-hugo-page-identifier* "Reference")
+(in-package #:coalton/doc/hugo)
 
-(defmethod write-documentation ((backend (eql ':hugo)) stream (object documentation-package-entries))
-  (with-slots (packages asdf-system by-package) object
+(defclass hugo-backend ()
+  ((stream :initarg :stream
+           :reader output-stream)))
 
-    ;; Write out title of page
-    (format stream "---~%identifier: ~A~%---~%" *coalton-docs-hugo-page-identifier*)
+(register-backend :hugo 'hugo-backend)
 
-    ;; Write out header for sidebar
-    (format stream "
-<style>
-@media only screen and (max-width: 1250px) {
-  .sidebar {
-    display: none;
-  }
-}
-</style>
+(defmethod write-packages ((backend hugo-backend) packages)
+  (let ((stream (output-stream backend)))
+    (write-string "---
+identifier: Reference
+layout: two-pane
+---
 
-<div class=\"sidebar\" style=\"height: 0; position: sticky; top: 10px\">
-<div style=\"position: relative; right: 50%; width: 50%;\">
+<aside class=\"sidebar\">
 
 ### Reference
-~{~A~}
 
+<div class=\"symbol-search\">
+  <input type=\"text\" id=\"symbol-search-input\" placeholder=\"Search symbols...\" autocomplete=\"off\">
+  <div class=\"search-results\" id=\"search-results\"></div>
 </div>
-</div>
-<div>~%~%"
-            (mapcar
-             (lambda (package)
-               (format nil
-                       "- <a href=\"#~(~A-package~)\"><code>~:*~(~A~)</code></a>~%"
-                       package))
-             packages))
 
-    ;; For the main content, just render as markdown
+" stream)
+
+    ;; package menu
     (dolist (package packages)
-      (let ((docs-for-package (gethash package by-package)))
-        (when docs-for-package
-          (write-documentation ':markdown stream
-                               docs-for-package))))
+      (format stream "- ~A~%" (object-link package)))
+    (format stream "</aside>~%<div class=\"main-content\">~%~%")
 
-    (format stream "</div>
-    </div>
-    </div>")))
+    ;; markdown content
+    (let ((backend (make-backend ':markdown stream)))
+      (dolist (package packages)
+        (write-object backend package)))
+    (format stream "</div>")))

@@ -7,7 +7,7 @@ QUICKLISP=$(SBCL) --load $(QUICKLISP_HOME)/setup.lisp \
 	--eval '(push (truename ".") asdf:*central-registry*)' \
 	--eval "(push (truename \"../\") ql:*local-project-directories*)"
 
-.PHONY: test test-safe
+.PHONY: test test-release test-safe
 test:
 	sbcl --noinform \
 		--non-interactive \
@@ -19,19 +19,26 @@ test-safe:
 		 --eval "(sb-ext:restrict-compiler-policy 'safety 3)" \
 		 --eval "(asdf:test-system :coalton)"
 
+# Run all tests in release mode
+
+test-release:
+	COALTON_ENV=release sbcl --noinform \
+		--non-interactive \
+		--eval "(asdf:test-system :coalton)"
+
 .PHONY: docs
 docs:
 	sbcl --noinform \
 		 --non-interactive \
 		 --eval "(ql:quickload :coalton/doc :silent t)" \
-		 --eval "(coalton-doc:write-stdlib-documentation-to-file \"docs/reference.md\")"
+		 --eval "(coalton/doc:write-stdlib-documentation-to-file \"docs/reference.md\")"
 
 .PHONY: web-docs
 web-docs:
 	sbcl --noinform \
 		 --non-interactive \
 		 --eval "(ql:quickload :coalton/doc :silent t)" \
-		 --eval "(coalton-doc:write-stdlib-documentation-to-file \"../coalton-website/content/reference.md\" :backend :hugo)"
+		 --eval "(coalton/doc:write-stdlib-documentation-to-file \"../coalton-website/content/reference.md\" :backend :hugo :revision \"main\")"
 
 
 .PHONY: bench

@@ -6,6 +6,8 @@ Coalton is a language embedded in Lisp, and indeed, Coalton compiles to Lisp cod
 
 ## Interaction Mode
 
+*See [Configuring Coalton](./configuring-coalton.md) for a more in-depth discussion about ways to configure Coalton.*
+
 First and foremost, there are two ways to globally compile Coalton. This is determined by
 an environment variable `COALTON_ENV` which in turn sets a Lisp feature `:coalton-release`
 and controls a Lisp function `(coalton-release-p)`.
@@ -51,11 +53,11 @@ restart your Lisp process and reload Coalton.
 
 ## Promises of Data and Basic Data Types
 
-**PROMISE**: Every Coalton value exists as a Lisp value. The structure of said value may not always be defined, however, and must be considered an element of type `T` in general circumstances.
+**PROMISE**: Every Coalton value exists as a Lisp value. The structure of said value may not always be defined, however, and must be considered an element of type `cl:t` in general circumstances.
 
-**PROMISE**: Coalton `Integer`, `Character`, `String`,  `Single-Float`, and `Double-Float` values correspond to their Lisp counterparts.
+**PROMISE**: Coalton's `Integer`, `IFix`, `UFix`, `Char`, `String`, `F32`, and `F64` values correspond to their Lisp counterparts.
 
-**PROMISE**: `COALTON:Boolean` is a Lisp `BOOLEAN`; `COALTON:True` is Lisp `T`, and `COALTON:False` is Lisp `NIL`.
+**PROMISE**: `coalton:Boolean` is a Lisp `cl:boolean`; `coalton:True` is Lisp `cl:t`, and `coalton:False` is Lisp `cl:nil`.
 
 **PROMISE**: Every Coalton `List` is a non-circular, homogeneous Common Lisp list.
 
@@ -196,17 +198,17 @@ There are two ways to call Coalton from Lisp.
 The safe way to call Coalton is to use the `coalton` operator. This will type check, compile, and evaluate a Coalton expression and return its value to Lisp. Note that `coalton` does not accept definitions or top-level forms. For example:
 
 ```lisp
-CL-USER> (format t "~R" (coalton:coalton coalton-library::(length (cons 1 (cons 2 nil)))))
+CL-USER> (format t "~R" (coalton:coalton (coalton-prelude:length (coalton:cons 1 (coalton:cons 2 coalton:nil)))))
 two     ; <- printed output
 NIL     ; <- returned value
-CL-USER> (format t "~R" (coalton:coalton coalton-library::(length 1)))
+CL-USER> (format t "~R" (coalton:coalton (coalton-prelude:length (coalton:the coalton:UFix 1))))
 ; (Guaranteed Compile-Time Error:)
-;
-; Failed to unify types COALTON:INTEGER 
-;                   and (COALTON-LIBRARY:LIST :B)
-; in unification of types (COALTON:INTEGER → :A)
-;                     and ((COALTON-LIBRARY:LIST :B) → COALTON:INTEGER)
-; in COALTON
+; error: Type mismatch
+;   --> repl input:1:46
+;    |
+;  1 |  (COALTON:COALTON (COALTON-LIBRARY/LIST:LENGTH (COALTON:THE COALTON:UFIX 1)))
+;    |                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Expected type '(COALTON:LIST #T53400)' but got 'COALTON:UFIX'
+;    [Condition of type COALTON-IMPL/TYPECHECKER/BASE:TC-ERROR]
 ```
 
 ### Unsafe Calls
@@ -214,10 +216,10 @@ CL-USER> (format t "~R" (coalton:coalton coalton-library::(length 1)))
 Using the aforementioned promises, it's possible to call into raw Coalton-compiled code by using the generated functions. These calls are not checked in any way!
 
 ```lisp
-CL-USER> (format t "~R" coalton-library::(length (cons 1 (cons 2 nil))))
+CL-USER> (format t "~R" (coalton-prelude:length (coalton:cons 1 (coalton:cons 2 coalton:nil))))
 two     ; <- printed output
 NIL     ; <- returned value
-CL-USER> (format t "~R" coalton-library::(length 1))
+CL-USER> (format t "~R" (coalton-prelude:length 1))
 ; (Possible Run-Time Error #1:)
 ;
 ; The value

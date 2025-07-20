@@ -46,6 +46,8 @@
                (:file "types")
                (:file "primitive-types")
                (:file "classes")
+               (:file "derivers")
+               (:file "hash-defining-macros")
                (:file "hash")
                (:file "builtin")
                (:file "functions")
@@ -54,6 +56,7 @@
                (:module "math"
                 :serial t
                 :components ((:file "arith")
+                             (:file "num-defining-macros")
                              (:file "num")
                              (:file "bounded")
                              (:file "conversions")
@@ -63,7 +66,13 @@
                              (:file "complex")
                              (:file "elementary")
                              (:file "dyadic")
-                             (:file "dual")))
+                             (:file "dual")
+                             (:file "hyperdual")
+                             (:file "package")))
+               (:module "experimental"
+                :serial t
+                :components ((:file "loops")
+                             (:file "package")))
                (:file "randomaccess")
                (:file "cell")
                (:file "tuple")
@@ -77,18 +86,26 @@
                (:file "string")
                (:file "slice")
                (:file "hashtable")
+               (:file "hashmap")
                (:file "queue")
-               (:file "monad/state")
-               (:file "ord-tree")
-               (:file "ord-map")
-               (:file "monad/free")
+               (:module "monad"
+                :serial t
+                :components ((:file "identity")
+                             (:file "state")
+                             (:file "environment")
+                             (:file "resultt")
+                             (:file "optionalt")
+                             (:file "free")
+                             (:file "freet")))
+               (:file "ordtree")
+               (:file "ordmap")
                (:file "seq")
                (:file "system")
                (:file "file")
                (:file "prelude")))
 
-(when (member (getenv "COALTON_PORTABLE_BIGFLOAT") '("1" "true" "t") :test 'equalp)
-  (pushnew :coalton-portable-bigfloat *features*))
+(cl:when (cl:member (uiop:getenv "COALTON_PORTABLE_BIGFLOAT") '("1" "true" "t") :test #'cl:equalp)
+  (cl:pushnew ':coalton-portable-bigfloat cl:*features*))
 
 (asdf:defsystem #:coalton/library/big-float
   :description "An arbitrary precision floating point library."
@@ -154,6 +171,7 @@
                (:file "pi")
                (:file "seq")
                (:file "matrix")
+               (:file "mapping")
                (:file "aobench/aobench")
                (:module "gabriel-benchmarks"
                 :serial t
@@ -166,13 +184,14 @@
 ;;; because 2.1.12 includes (or will include) a bugfix that allows a cleaner, more maintainable
 ;;; implementation.
 
-(cl:if (uiop:featurep :sbcl)
-       (cl:pushnew
-        (cl:if (uiop:version< (cl:lisp-implementation-version)
-                              "2.2.2")
-               :sbcl-pre-2-2-2
-               :sbcl-post-2-2-2)
-        cl:*features*))
+#+sbcl
+(cl:handler-case
+    (cl:progn
+      (sb-ext:assert-version->= 2 2 2)
+      (cl:pushnew ':sbcl-post-2-2-2 cl:*features*))
+  (cl:error (c)
+    (declare (ignore c))
+    (cl:pushnew ':sbcl-pre-2-2-2 cl:*features*)))
 
 (asdf:defsystem #:coalton/hashtable-shim
   :description "Shim over Common Lisp hash tables with custom hash functions, for use by the Coalton standard library."
@@ -193,6 +212,7 @@
   :version (:read-file-form "VERSION.txt")
   :depends-on (#:coalton
                #:coalton/library/big-float
+               #:coalton/library/computable-reals
                #:html-entities
                #:yason
                #:uiop)
@@ -201,10 +221,13 @@
                       (funcall compile)))
   :pathname "src/doc"
   :serial t
-  :components ((:file "package")
-               (:file "generate-documentation")
+  :components ((:file "base")
+               (:file "environment")
+               (:file "model")
+               (:file "string")
                (:file "markdown")
-               (:file "hugo")))
+               (:file "hugo")
+               (:file "main")))
 
 (asdf:defsystem #:coalton/tests
   :description "Tests for COALTON."
@@ -224,11 +247,13 @@
   :components ((:file "package")
                (:file "loader")
                (:file "utilities")
-               (:file "stream-tests")
+               (:file "source-tests")
                (:file "tarjan-scc-tests")
                (:file "reader-tests")
                (:file "error-tests")
-               (:file "parser-tests")
+               (:module "parser"
+                :serial t
+                :components ((:file "cursor-tests")))
                (:file "entry-tests")
                (:file "toplevel-tests")
                (:file "type-inference-tests")
@@ -237,26 +262,41 @@
                (:file "runtime-tests")
                (:module "typechecker"
                 :serial t
-                :components ((:file "map-tests")))
+                :components ((:file "lisp-type-tests")))
                (:file "environment-persist-tests")
+               (:file "coalton-tests")
+               (:file "shortcut-tailcall-tests")
                (:file "slice-tests")
                (:file "float-tests")
                (:file "dual-tests")
+               (:file "hyperdual-tests")
                (:file "quantize-tests")
                (:file "hashtable-tests")
+               (:file "hashmap-tests")
                (:file "iterator-tests")
                (:file "call-coalton-from-lisp")
                (:file "vector-tests")
                (:file "string-tests")
+               (:file "optional-tests")
                (:file "recursive-let-tests")
                (:file "class-tests")
                (:file "struct-tests")
+               (:file "type-alias-tests")
                (:file "list-tests")
+               (:file "lisparray-tests")
                (:file "red-black-tests")
                (:file "seq-tests")
-               (:file "unused-variables")
                (:file "pattern-matching-tests")
                (:file "looping-native-tests")
                (:file "monomorphizer-tests")
                (:file "inliner-tests")
-               (:file "file-tests")))
+               (:file "inliner-tests-1") ; must come after inliner-tests
+               (:file "deriver-tests")
+               (:file "file-tests")
+               (:file "experimental-tests")
+               (:file "exceptions")
+               (:module "monad"
+                :serial t
+                :components ((:file "optionalt")
+                             (:file "resultt")
+                             (:file "environment")))))

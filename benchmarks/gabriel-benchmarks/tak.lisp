@@ -2,6 +2,20 @@
 ;;;;
 ;;;;
 
+(cl:in-package #:benchmark-gabriel/native)
+
+(cl:declaim (cl:optimize (cl:speed 3) (cl:safety 0)))
+
+(coalton-toplevel
+
+  (declare tak (IFix -> IFix -> IFix -> IFix))
+  (define (tak x y z)
+    (if (not (< y x))
+        z
+        (tak (tak (1- x) y z)
+             (tak (1- y) z x)
+             (tak (1- z) x y)))))
+
 (cl:in-package #:benchmark-gabriel)
 
 (define-benchmark tak ()
@@ -25,17 +39,3 @@
       (lisp-tak (lisp-tak (1- x) y z)
                 (lisp-tak (1- y) z x)
                 (lisp-tak (1- z) x y))))
-
-(cl:in-package #:benchmark-gabriel/native)
-
-(cl:declaim (cl:optimize (cl:speed 3) (cl:safety 0)))
-
-(coalton-toplevel
-
-  (declare tak (IFix -> IFix -> IFix -> IFix))
-  (define (tak x y z)
-    (if (not (< y x))
-        z
-        (tak (tak (1- x) y z)
-             (tak (1- y) z x)
-             (tak (1- z) x y)))))

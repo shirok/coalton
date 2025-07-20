@@ -8,11 +8,12 @@
   (:local-nicknames
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)
+   (#:source #:coalton-impl/source)
    (#:tc #:coalton-impl/typechecker/stage-1))
   (:export
    #:pattern                            ; STRUCT
    #:pattern-type                       ; ACCESSOR
-   #:pattern-source                     ; ACCESSOR
+   #:pattern-location                   ; ACCESSOR
    #:pattern-list-p                     ; FUNCTION
    #:pattern-list                       ; TYPE
    #:pattern-var                        ; STRUCT
@@ -20,6 +21,11 @@
    #:pattern-var-name                   ; ACCESSOR
    #:pattern-var-orig-name              ; ACCESSOR
    #:pattern-var-p                      ; FUNCTION
+   #:pattern-binding                    ; STRUCT
+   #:pattern-binding-var                ; ACCESSOR
+   #:pattern-binding-pattern            ; ACCESSOR
+   #:make-pattern-binding               ; CONSTRUCTOR
+   #:pattern-binding-p                  ; FUNCTION
    #:pattern-literal                    ; STRUCT
    #:make-pattern-literal               ; CONSTRUCTOR
    #:pattern-literal-value              ; ACCESSOR
@@ -40,8 +46,11 @@
 (defstruct (pattern
             (:constructor nil)
             (:copier nil))
-  (type   (util:required 'type)   :type tc:qualified-ty :read-only t)
-  (source (util:required 'source) :type cons            :read-only t))
+  (type     (util:required 'type) :type tc:qualified-ty           :read-only t)
+  (location nil                   :type (or source:location null) :read-only t))
+
+(defmethod source:location ((self pattern))
+  (pattern-location self))
 
 (defun pattern-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -55,6 +64,12 @@
             (:copier nil))
   (name      (util:required 'name)      :type parser:identifier :read-only t)
   (orig-name (util:required 'orig-name) :type parser:identifier :read-only t))
+
+(defstruct (pattern-binding
+            (:include pattern)
+            (:copier nil))
+  (var     (util:required 'var)     :type pattern-var :read-only t)
+  (pattern (util:required 'pattern) :type pattern     :read-only t))
 
 (defun pattern-var-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -105,6 +120,11 @@
     (declare (values pattern-var-list &optional))
     (pattern-variables-generic% (pattern-constructor-patterns pattern)))
 
+  (:method ((pattern pattern-binding))
+    (declare (values pattern-var-list &optional))
+    (cons (pattern-binding-var pattern)
+          (pattern-variables-generic% (pattern-binding-pattern pattern))))
+
   (:method ((list list))
     (declare (values pattern-var-list))
     (mapcan #'pattern-variables-generic% list)))
@@ -114,7 +134,7 @@
            (values pattern-var &optional))
   (make-pattern-var
    :type (tc:apply-substitution subs (pattern-type node))
-   :source (pattern-source node)
+   :location (pattern-location node)
    :name (pattern-var-name node)
    :orig-name (pattern-var-orig-name node)))
 
@@ -123,7 +143,7 @@
            (values pattern-literal &optional))
   (make-pattern-literal
    :type (tc:apply-substitution subs (pattern-type node))
-   :source (pattern-source node)
+   :location (pattern-location node)
    :value (pattern-literal-value node)))
 
 (defmethod tc:apply-substitution (subs (node pattern-wildcard))
@@ -131,13 +151,22 @@
            (values pattern-wildcard &optional))
   (make-pattern-wildcard
    :type (tc:apply-substitution subs (pattern-type node))
-   :source (pattern-source node)))
+   :location (pattern-location node)))
+
+(defmethod tc:apply-substitution (subs (node pattern-binding))
+  (declare (type tc:substitution-list subs)
+           (values pattern-binding &optional))
+  (make-pattern-binding
+   :type (tc:apply-substitution subs (pattern-type node))
+   :location (pattern-location node)
+   :var (tc:apply-substitution subs (pattern-binding-var node))
+   :pattern (tc:apply-substitution subs (pattern-binding-pattern node))))
 
 (defmethod tc:apply-substitution (subs (node pattern-constructor))
   (declare (type tc:substitution-list subs)
            (values pattern-constructor &optional))
   (make-pattern-constructor
    :type (tc:apply-substitution subs (pattern-type node))
-   :source (pattern-source node)
+   :location (pattern-location node)
    :name (pattern-constructor-name node)
    :patterns (tc:apply-substitution subs (pattern-constructor-patterns node))))

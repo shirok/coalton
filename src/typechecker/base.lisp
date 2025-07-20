@@ -2,14 +2,23 @@
   (:use
    #:cl)
   (:local-nicknames
-   (#:se #:source-error)
+   (#:source #:coalton-impl/source)
    (#:util #:coalton-impl/util))
+  (:import-from
+   #:coalton-impl/settings
+   #:*coalton-type-printing-mode*)
   (:export
+   #:*coalton-type-printing-mode*
    #:*coalton-pretty-print-tyvars*
    #:*pprint-tyvar-dict*
    #:*pprint-variable-symbol-code*
    #:*pprint-variable-symbol-suffix*
-   #:tc-error                           ; CONDITION
+   #:tc-error                           ; CONDITION, FUNCTION
+   #:tc-cerror                          ; FUNCTION
+   #:tc-location
+   #:tc-secondary-location
+   #:tc-note
+   #:tc-secondary-note
    #:coalton-internal-type-error        ; CONDITION
    #:check-duplicates                   ; FUNCTION
    #:check-package                      ; FUNCTION
@@ -60,14 +69,34 @@ This requires a valid PPRINT-VARIABLE-CONTEXT")
 ;;; Conditions
 ;;;
 
-(define-condition tc-error (se:source-base-error)
-  ()
-  (:report
-   (lambda (c s)
-     (if (se:source-base-error-text c)
-         (write-string (se:source-base-error-text c) s)
-         (with-pprint-variable-context ()
-           (se:display-source-error s (se:source-base-error-err c)))))))
+(defun tc-location (location format-string &rest format-args)
+  (source:note location
+               (with-pprint-variable-context ()
+                 (apply #'format nil format-string format-args))))
+
+(defun tc-secondary-location (location format-string &rest format-args)
+  (source:secondary-note location
+                       (with-pprint-variable-context ()
+                         (apply #'format nil format-string format-args))))
+
+(defun tc-note (located format-string &rest format-args) 
+  (apply #'tc-location (source:location located) format-string format-args))
+
+(defun tc-secondary-note (located format-string &rest format-args)
+  (apply #'tc-secondary-location (source:location located) format-string format-args))
+
+(define-condition tc-error (source:source-error)
+  ())
+
+(defun tc-error (message &rest notes)
+  "Signal a typechecker error with MESSAGE, and optional NOTES that label source locations."
+  (declare (type string message))
+  (error 'tc-error :message message :notes notes))
+
+(defun tc-cerror (message &rest notes)
+  "Signal a continuable typechecker error with MESSAGE, and optional NOTES that label source locations."
+  (declare (type string message))
+  (cerror "Ignore and continue anyway." 'tc-error :message message :notes notes))
 
 (define-condition coalton-internal-type-error (error)
   ()
@@ -80,13 +109,11 @@ This requires a valid PPRINT-VARIABLE-CONTEXT")
 ;;; Assertions
 ;;;
 
-(defun check-duplicates (elems f g callback)
-  "Check for duplicate elements in ELEMS. F maps items in ELEMS to
-symbols which are compared for equality. G maps items in ELEMS to
-source tuples which are compared for ordering."
+(defun check-duplicates (elems f callback)
+  "Check for duplicate elements in ELEMS.  F maps items in ELEMS to symbols which are compared for equality.
+As soon as two duplicate elements are detected, CALLBACK is invoked with those two elements, ordered by source location."
   (declare (type list elems)
            (type function f)
-           (type function g)
            (type function callback))
 
   (loop :with table := (make-hash-table :test #'eq)
@@ -100,18 +127,18 @@ source tuples which are compared for ordering."
           :do (let ((first (gethash id table))
                     (second elem))
 
-                (when (> (car (funcall g first)) (car (funcall g second)))
+                (unless (source:location< (source:location first)
+                                          (source:location second))
                   (psetf first second second first))
 
                 (funcall callback first second))
         :else
           :do (setf (gethash (funcall f elem) table) elem)))
 
-(defun check-package (elems f source file)
+(defun check-package (elems f source)
   (declare (type list elems)
            (type function f)
-           (type function source)
-           (type se:file file))
+           (type function source))
 
   (loop :for elem :in elems
         :for id := (funcall f elem)
@@ -119,12 +146,9 @@ source tuples which are compared for ordering."
         :do (check-type id symbol)
 
         :unless (equalp (symbol-package id) *package*)
-          :do (error 'tc-error
-                     :err (se:source-error
-                           :span (funcall source elem)
-                           :file file
-                           :message "Invalid identifier name"
-                           :primary-note (format nil "The symbol ~S is defined in the package ~A and not the current package ~A"
-                                                 id
-                                                 (symbol-package id)
-                                                 *package*)))))
+          :do (tc-error "Invalid identifier name"
+                        (tc-location (funcall source elem)
+                                     "The symbol ~S is defined in the package ~A and not the current package ~A"
+                                     id
+                                     (symbol-package id)
+                                     *package*))))

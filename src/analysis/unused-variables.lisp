@@ -2,23 +2,16 @@
   (:use
    #:cl)
   (:local-nicknames
-   (#:se #:source-error)
+   (#:source #:coalton-impl/source)
    (#:util #:coalton-impl/util)
    (#:tc #:coalton-impl/typechecker))
   (:export
-   #:find-unused-variables              ; FUNCTION
-   #:unused-variable-warning            ; CONDITION
-   ))
+   #:find-unused-variables))
 
 (in-package #:coalton-impl/analysis/unused-variables)
 
-(define-condition unused-variable-warning (se:source-base-warning)
-  ())
-
-(defun find-unused-variables (binding file)
-  (declare (type (or tc:toplevel-define tc:instance-method-definition) binding)
-           (type se:file file))
-
+(defun find-unused-variables (binding)
+  (declare (type (or tc:toplevel-define tc:instance-method-definition) binding))
   (let ((used-variables (make-hash-table :test #'eq)))
 
     ;; Mark used variables
@@ -33,7 +26,7 @@
 
     ;; Check for unused parameters in the binding
     (loop :for var :in (tc:pattern-variables (tc:binding-parameters binding))
-          :do (variable-binding var used-variables file))
+          :do (variable-binding var used-variables))
 
     ;; Check for unused variables in the body
     (tc:traverse
@@ -42,58 +35,49 @@
       :bind (lambda (node)
               (declare (type tc:node-bind))
               (loop :for var :in (tc:pattern-variables (tc:node-bind-pattern node))
-                    :do (variable-binding var used-variables file))
+                    :do (variable-binding var used-variables))
               node)
       :do-bind (lambda (node)
                  (declare (type tc:node-do-bind))
                  (loop :for var :in (tc:pattern-variables (tc:node-do-bind-pattern node))
-                       :do (variable-binding var used-variables file))
+                       :do (variable-binding var used-variables))
                  node)
       :match-branch (lambda (node)
                       (declare (type tc:node-match-branch))
                       (loop :for var :in (tc:pattern-variables (tc:node-match-branch-pattern node))
-                            :do (variable-binding var used-variables file))
+                            :do (variable-binding var used-variables))
                       node)
       :let (lambda (node)
              (declare (type tc:node-let node))
              (loop :for binding :in (tc:node-let-bindings node)
-                   :do (variable-binding (tc:node-let-binding-name binding) used-variables file))
+                   :do (variable-binding (tc:node-let-binding-name binding) used-variables))
              node)
       :abstraction (lambda (node)
                      (declare (type tc:node-abstraction node))
                      (loop :for var :in (tc:pattern-variables (tc:node-abstraction-params node))
-                           :do (variable-binding var used-variables file))
+                           :do (variable-binding var used-variables))
                      node)))))
 
-(defun variable-binding (var used-variables file)
+(defun variable-binding (var used-variables)
   (declare (type (or tc:node-variable tc:pattern-var) var)
-           (type hash-table used-variables)
-           (type se:file file))
+           (type hash-table used-variables))
 
-  (destructuring-bind (name . source)
+  (destructuring-bind (name . location)
       (etypecase var
         (tc:node-variable
          (cons
           (tc:node-variable-name var)
-          (tc:node-source var)))
+          (source:location var)))
         (tc:pattern-var
          (cons
           (tc:pattern-var-name var)
-          (tc:pattern-source var))))
+          (source:location var))))
 
     (unless (char= (aref (symbol-name name) 0) #\_)
         (unless (gethash name used-variables)
-          (warn 'unused-variable-warning
-                :err (se:source-error
-                      :type :warn
-                      :file file
-                      :span source
-                      :message "Unused variable"
-                      :primary-note "variable defined here"
-                      :help-notes
-                      (list
-                       (se:make-source-error-help
-                        :span source
-                        :replacement (lambda (name)
-                                       (concatenate 'string "_" name))
-                        :message "prefix the variable with '_' to declare it unused"))))))))
+          (source:warn "Unused variable"
+                       (source:note location "variable defined here")
+                       (source:help location
+                                    (lambda (name)
+                                      (concatenate 'string "_" name))
+                                    "prefix the variable with '_' to declare it unused"))))))

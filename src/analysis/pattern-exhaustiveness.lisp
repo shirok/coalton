@@ -9,7 +9,8 @@
    #:useless-pattern-warning
    #:exhaustive-patterns-p
    #:useful-pattern-p
-   #:find-non-matching-value))
+   #:find-non-matching-value
+   #:collapse-binding-patterns))
 
 (in-package #:coalton-impl/analysis/pattern-exhaustiveness)
 
@@ -19,6 +20,61 @@
 ;;; Maranget 2007, http://moscova.inria.fr/~maranget/papers/warn/index.html
 ;;;
 
+;;; Fundamental concepts for the reader: 
+;;;
+;;; Patterns
+;;; ---------
+;;;
+;;;    The subtypes of COALTON-IMPL/TYPECHECKER:PATTERN
+;;;
+;;; Pattern Matrices & Row Matching
+;;; -------------------------------
+;;;
+;;;   A pattern matrix is a data structure that facilitates a search
+;;;   for a list of patterns that match a list of values on an
+;;;   member-by-member basis.
+;;;
+;;;   Specifically, the pattern matrix P is a list of lists of
+;;;   typed patterns of the form:
+;;;
+;;;      ((p₁₁ ... p₁ₙ)
+;;;       ...
+;;;       (pₘ₁ ... pₘₙ))
+;;;
+;;;   A list of values v = (v₁ ... vₙ) is said to match the iᵗʰ row of
+;;;   P if each vⱼ matches each pᵢⱼ and i is the first row index for
+;;;   which this true, counting from the top.
+;;;
+;;; Exhaustiveness
+;;; --------------
+;;;
+;;;   A pattern matrix is exhaustive ⇔ for ∀v of type T=(t₁,...,tₙ),
+;;;   ∃i such that v matches the ith row of P.
+;;;
+;;; Pattern "Usefulness"
+;;; ---------------------
+;;;
+;;;   A row in a pattern matrix P is called useless, or redundant, if
+;;;   no list of appropriately typed values will match it. This
+;;;   "useless" designation includes the case where the row would
+;;;   match a value v if only that row appeared before an earlier
+;;;   matching row.
+;;;
+;;;   For example, consider the pattern matrix P:
+;;;
+;;;     (((Cons _ _) _)
+;;;      ((Cons A B) (Nil))
+;;;      ( _         _))
+;;;
+;;;   then the second row is useless b/c any value will match before
+;;;   it is reached.
+;;;
+;;;   Finally, a pattern list q is USEFUL with respect to a pattern
+;;;   matrix P, if there is a value list v such that v does not match
+;;;   P but does match q (where v and q and P's rows all have the same
+;;;   type).
+;;;
+;;;
 
 (defun exhaustive-patterns-p (patterns env)
   "Are PATTERNS exhaustive?"
@@ -26,8 +82,7 @@
    (useful-pattern-clause-p
     (mapcar #'list patterns)
     (list (tc:make-pattern-wildcard
-           :type (tc:qualify nil (tc:make-variable))
-           :source (cons nil nil)))
+           :type (tc:qualify nil (tc:make-variable))))
     env)))
 
 (defun useful-pattern-p (patterns pattern env)
@@ -160,8 +215,7 @@ CLAUSE is a list representing a row-vector of patterns."
                      (tc:pattern-constructor
                       (list (append (mapcar (lambda (pattern)
                                               (tc:make-pattern-wildcard
-                                               :type (tc:pattern-type pattern)
-                                               :source (cons nil nil)))
+                                               :type (tc:pattern-type pattern)))
                                             (tc:pattern-constructor-patterns pattern))
                                     (rest row))))))
                   (t
@@ -208,8 +262,29 @@ CLAUSE is a list representing a row-vector of patterns."
                   (t
                    (util:coalton-bug "Not reachable.")))))
 
+(defun collapse-binding-patterns (pat)
+  "For the purposes of exhaustiveness checking, a binding pattern like
+
+        (@ VAR PAT) 
+
+   can be collapsed to PAT."
+  (declare (type tc:pattern pat) (values tc:pattern))
+  (etypecase pat
+    ((or tc:pattern-var tc:pattern-wildcard tc:pattern-literal)
+     pat)
+    (tc:pattern-constructor
+     (tc:make-pattern-constructor
+      :type (tc:pattern-type pat)
+      :location (tc:pattern-location pat)
+      :name (tc:pattern-constructor-name pat)
+      :patterns (mapcar #'collapse-binding-patterns (tc:pattern-constructor-patterns pat))))
+    (tc:pattern-binding
+     (collapse-binding-patterns
+      (tc:pattern-binding-pattern pat)))))
+
 (defun find-non-matching-value (pattern-matrix n env)
-  "Finds an example of a non-matching value for PATTERN-MATRIX or, if PATTERN-MATRIX is exhaustive returns T."
+  "Finds an example of a non-matching value for PATTERN-MATRIX or, if
+   PATTERN-MATRIX is exhaustive returns T."
   (declare (type pattern-matrix pattern-matrix)
            (type (integer 0) n)
            (optimize (debug 3)))
@@ -218,8 +293,7 @@ CLAUSE is a list representing a row-vector of patterns."
     ((and (zerop (length pattern-matrix)))
      (loop :for i :below n
            :collect (tc:make-pattern-wildcard
-                     :type (tc:qualify nil (tc:make-variable))
-                     :source (cons nil nil))))
+                     :type (tc:qualify nil (tc:make-variable)))))
     ;; Zero wildcards with a pattern matrix that has zero columns indicates the matrix is exhaustive.
     ((and (zerop n)
           (zerop (length (first pattern-matrix))))
@@ -244,7 +318,6 @@ CLAUSE is a list representing a row-vector of patterns."
                 :unless (eq val t)
                   :do (return (cons (tc:make-pattern-constructor
                                      :type (tc:pattern-type ctor)
-                                     :source (cons nil nil)
                                      :name (tc:pattern-constructor-name ctor)
                                      :patterns (subseq val 0 ctor-arity))
                                     (subseq val ctor-arity (+ ctor-arity n -1))))
@@ -262,8 +335,7 @@ CLAUSE is a list representing a row-vector of patterns."
               ;; If there are no constructors then emit a wildcard.
               ((null first-column-constructors)
                (cons (tc:make-pattern-wildcard
-                      :type (tc:qualify nil (tc:make-variable))
-                      :source (cons nil nil))
+                      :type (tc:qualify nil (tc:make-variable)))
                      val))
               ;; Or emit a constructor which was not named in this pattern.
               (t
@@ -288,9 +360,7 @@ CLAUSE is a list representing a row-vector of patterns."
     ;; the error generation. Instead we just select the first one.
     (tc:make-pattern-constructor
      :type (tc:pattern-type (first patterns))
-     :source (cons nil nil)
      :name unnamed-constructor
      :patterns (loop :for i :below (tc:constructor-entry-arity unnamed-constructor-entry)
                      :collect (tc:make-pattern-wildcard
-                               :type (tc:qualify nil (tc:make-variable))
-                               :source (cons nil nil))))))
+                               :type (tc:qualify nil (tc:make-variable)))))))

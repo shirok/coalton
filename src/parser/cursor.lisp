@@ -1,66 +1,92 @@
-;;; This package provides utilities for incremental consumption of
-;;; concrete syntax tree values.
-;;;
-;;; The package has two main points. The first is the definition of a
-;;; cursor struct that maintains a reference to the current value and a
-;;; pointer within it, if it is cons-valued. The functions 'next' and
-;;; 'empty-p' are sufficient to build more specialized parsing
-;;; functions that don't need knowledge of the cst package.
-;;;
-;;; The second is the definition of a syntax-error condition that
-;;; wraps a list of labeled spans. Many errors reflect to the current
-;;; state of the cursor (empty, not cons-valued, pointing at wron
-;;; type, etc.). A function is provided to convert syntax-error
-;;; conditions to base/parse-error conditions.
+;;;; Utilities for incremental consumption of concrete syntax tree
+;;;; values.  A cursor maintains a reference to a value, and optionally
+;;;; to a position within it, if it is cons-valued. The functions
+;;;; 'next' and 'empty-p' are sufficient to build specialized parsing
+;;;; functions that don't need knowledge of the cst package.
+;;;;
+;;;; Example of a parser for expressions like "(sym* -> sym*)"
+;;;;
+;;;;   (let* ((cursor (cursor:make-cursor form source "invalid"))
+;;;;          (left (cursor:collect cursor
+;;;;                  :test (lambda (sym) (not (eq sym '->))))))
+;;;;     (cursor:discard-symbol cursor)       ; discard separator
+;;;;     (let ((right (cursor:collect cursor)))
+;;;;       (cons left right)))
 
 (defpackage #:coalton-impl/parser/cursor
   (:use
    #:cl)
+  (:shadow
+   #:error)
   (:local-nicknames
    (#:cst #:concrete-syntax-tree)
-   (#:se #:source-error))
+   (#:source #:coalton-impl/source)
+   (#:util #:coalton-impl/util))
   (:shadowing-import-from
    #:coalton-impl/parser/base
    #:parse-error)
   (:export
+   #:atom-p
+   #:collect
    #:collect-symbols
+   #:cursor-location
+   #:cursor-message
+   #:cursor-pointer
+   #:cursor-source
    #:cursor-value
-   #:do-every
+   #:discard-symbol
+   #:each
    #:empty-p
+   #:error
    #:make-cursor
-   #:make-note
    #:next
    #:next-symbol
-   #:parse-error
-   #:peek
-   #:span-error
-   #:syntax-error
-   ))
+   #:peek))
 
 (in-package #:coalton-impl/parser/cursor)
 
-;; The value field can be any type returned by cst, generally a cons
-;; or atom.  When value is a cst:cons, pointer initially points to
-;; that value, and is destructively updated as values are 'popped'.
+;;; The value field can be any type returned by cst, generally a cons
+;;; or atom.  When value is a cst:cons, pointer initially points to
+;;; that value, and is destructively updated as values are 'popped'.
 
 (defstruct (cursor (:constructor %make-cursor))
   "A CST node-valued cursor."
-  value                                  ; current value
-  pointer)                               ; pointer into current value
+  (value   (util:required 'value)   :type cst:cst) ; current value
+  (pointer (util:required 'value)   :type cst:cst) ; pointer into current value
+  (last    nil            :type (or null cst:cst)) ; pointer to most recently consumed value
+  (source  (util:required 'source))                ; the source:location of cursor
+  (message (util:required 'message) :type string)) ; a message providing context for errors
 
-(defun make-cursor (value)
+;;; The implementation of source:location for a cursor returns the
+;;; entire span of the cursor.
+
+(defmethod source:location ((self cursor))
+  (source:make-location (cursor-source self)
+                        (cst:source (cursor-value self))))
+
+(defun make-cursor (value source message)
   "Make a cursor that points at VALUE."
-  (%make-cursor :value value :pointer value))
+  (%make-cursor :value value
+                :pointer value
+                :source source
+                :message message))
 
-(defun peek (cursor)
-  "Peek at the Lisp value of CURSOR without changing cursor state."
-  (cst:raw (cursor-pointer cursor)))
-
-(defun cons-p (cursor)
-  "T if CURSOR is pointing at a cons."
+(defun peek (cursor &key (unwrap t))
+  "Peek at the value of CURSOR without changing any state."
   (declare (type cursor cursor))
-  (or (cst:consp (cursor-pointer cursor))
-      (null (peek cursor))))
+  (unless (empty-p cursor)
+    (let ((value (cst:first (cursor-pointer cursor))))
+      (when unwrap
+        (setf value (cst:raw value)))
+      value)))
+
+(defun atom-p (cursor)
+  "Return T if cursor is pointing at an atom."
+  (cst:atom (cursor-pointer cursor)))
+
+(defun proper-list-p (cursor)
+  "Return T if cursor is pointing at a proper list."
+  (cst:proper-list-p (cursor-pointer cursor)))
 
 (defun empty-p (cursor)
   "T if CURSOR has no next value."
@@ -69,47 +95,42 @@
     (or (not (cst:consp pointer))
         (null (cst:first pointer)))))
 
-(defstruct note
-  "A source text annotation. The TYPE field is compatible with base/parse-error."
-  (span nil :type (cons integer integer)       :read-only t) ; offsets into source
-  (text nil :type string                       :read-only t) ; error message or label
-  (type ':primary))                                          ; message or label type: primary, seocndary or help
+(defun cursor-location (cursor)
+  "Return the location of the value that CURSOR is pointing at."
+  (source:make-location (cursor-source cursor)
+                        (cond ((cursor-last cursor)
+                               (cst:source (cursor-last cursor)))
+                              (t
+                               (let ((s (cst:source (cursor-value cursor))))
+                                 (cons (1+ (car s))
+                                       (1+ (car s))))))))
 
-(define-condition syntax-error (error)
-  ((note :initarg :notes
-         :reader error-notes)))
+(defun %label-location (cursor position)
+  "Look up the CURSOR-relative error message location for a symbolic POSITION."
+  (ecase position
+    (:last
+     (cursor-location cursor))
+    (:next
+     (source:make-location (cursor-source cursor)
+                           (cst:source (cst:first (cursor-pointer cursor)))))
+    (:form
+     (source:make-location (cursor-source cursor)
+                           (cst:source (cursor-value cursor))))
+    (:after-last
+     (source:end-location (cursor-location cursor)))))
 
-(defun pointer-span (cursor)
-  "Return the span that CURSOR is pointing at.
 
-If the wrapped node pointed to a non-empty cons, the span is the first value.
-If the node is empty, the span is empty and points at the end of the wrapped value.
-Otherwise, the span is the cst:source of the wrapped node."
+(defun error (cursor position note)
+  "Signal a PARSE-ERROR with a NOTE that labels the current value of a cursor.
 
-  (declare (type cursor cursor))
-  (let ((pointer (cursor-pointer cursor))
-        (cons-p (cons-p cursor))
-        (empty-p (empty-p cursor)))
-    (cond ((and cons-p (not empty-p))
-           (cst:source (cst:first pointer)))
-          (cons-p
-           (cons (1- (cdr (cst:source pointer)))
-                 (cdr (cst:source pointer))))
-          (t
-           (cst:source pointer)))))
+Position is one of:
 
-(declaim (inline span-error))
-(defun span-error (span note)
-  "Signal an error with message NOTE that points at SPAN."
-  (error 'syntax-error
-         :notes (list (make-note :span span
-                                 :text note))))
-
-(declaim (inline syntax-error))
-(defun syntax-error (cursor note)
-  "Signal an error with message NOTE that points at the current span indicated by CURSOR."
-  (declare (type cursor cursor))
-  (span-error (pointer-span cursor) note))
+:last -- label the last element
+:next -- label the next element
+:form -- label the enclosing form
+:after-last -- point just past the last element"
+  (parse-error (cursor-message cursor)
+               (source:note (%label-location cursor position) note)))
 
 (defun next (cursor &key (pred nil) (unwrap t))
   "Return the next value from a nonempty cursor.
@@ -117,76 +138,71 @@ Otherwise, the span is the cst:source of the wrapped node."
 If PRED is non-NIL, only consume a value if it is true.
 If UNWRAP is NIL, return the CST node, otherwise, return the raw value."
   (declare (type cursor cursor))
-  (when (not (cons-p cursor))
-    (syntax-error cursor "not a list"))
   (when (empty-p cursor)
     ;; Finding empty-p = t here this would indicate that the compiler
     ;; writer hasn't checked for emptiness in the calling context in
     ;; order to construct a more specific error message.
-    (syntax-error cursor "attempt to read past end of list"))
+    (error cursor ':after-last "attempt to read past end of list"))
   (let ((value (cst:first (cursor-pointer cursor))))
     (when (or (null pred)
               (funcall pred (cst:raw value)))
       (setf (cursor-pointer cursor)
-            (cst:rest (cursor-pointer cursor)))
+            (cst:rest (cursor-pointer cursor))
+            (cursor-last cursor)
+            value)
       (if unwrap (cst:raw value) value))))
 
-(defun do-every (cursor fn)
-  "Wrap each value in CURSOR in a subcursor, and call FN with it."
+(defun %ensure-proper-list (cursor)
+  "Enforce that CURSOR points at a proper list before iterating. Empty lists are allowed."
+  (unless (null (cst:raw (cursor-pointer cursor)))
+    (when (atom-p cursor)
+      (error cursor ':form "expected a list"))
+    (unless (proper-list-p cursor)
+      (error cursor ':form "unexpected dotted list"))))
+
+(defun each (cursor f)
+  "For each element in cons-valued CURSOR, create a subcursor and apply F."
+  (%ensure-proper-list cursor)
   (loop :until (empty-p cursor)
-        :do (funcall fn (make-cursor (next cursor :unwrap nil)))))
+        :do (let ((value (next cursor :unwrap nil)))
+              (funcall f (%make-cursor :value value
+                                       :pointer value
+                                       :source (cursor-source cursor)
+                                       :message (cursor-message cursor))))))
 
-;; type-specific helpers
+(defun collect (cursor &key test (key #'identity))
+  "Collect values from list-valued CURSOR until empty or TEST returns NIL, optionally transforming each value with KEY."
+  (%ensure-proper-list cursor)
+  (loop :until (or (empty-p cursor)
+                   (and test (not (funcall test (peek cursor)))))
+        :collect (funcall key (next cursor :unwrap nil))))
 
-(defun next-symbol (cursor &key message missing require)
-  "Return the next value in CURSOR as a symbol. The cursor must be nonempty, and the next value must be a symbol."
+;;; Utilities for reading symbols
+
+(defun next-symbol (cursor missing not-symbol)
+  "Return the next symbol in cursor.
+If the cursor is empty, signal an error with MISSING as the message.
+If the next element is not a symbol, signal an error with NOT-SYMBOL as the message."
   (when (empty-p cursor)
-    (syntax-error cursor (or missing "symbol is missing")))
-  (next cursor
-        :pred (lambda (value)
-                (when (not (symbolp value))
-                  (syntax-error cursor
-                                (or message "value must be a symbol")))
-                (when (and require (not (string-equal require value)))
-                  (syntax-error cursor
-                                (or message
-                                    (format nil "expected ~A" require))))
-                t)))
+    (error cursor ':after-last missing))
+  (let ((name (next cursor)))
+    (unless (symbolp name)
+      (error cursor ':last not-symbol))
+    name))
+
+(defun discard-symbol (cursor &optional symbol message)
+  "Read and discard a symbol from CURSOR.
+Signal a condition with MESSAGE if a symbol is not present."
+  (let ((s (next-symbol cursor (or message (format nil "expected ~A" symbol))
+                        (or message "must be a symbol"))))
+    (when (and symbol (not (string-equal s symbol)))
+      (error cursor ':last (or message (format nil "expected ~A" symbol))))
+    s))
 
 (defun collect-symbols (cursor)
-  "Return all remaining values in CURSOR as a list of symbols."
-  (loop :until (empty-p cursor)
-        :collect (next-symbol cursor)))
-
-;; conversion to parse-error conditions
-
-(defun help-note-p (note)
-  "T if NOTE is a help note."
-  (eq ':help (note-type note)))
-
-(defun note->source-note (note)
-  "Convert NOTE to a source error help note."
-  (se:make-source-error-note :span (note-span note)
-                             :type (note-type note)
-                             :message (note-text note)))
-
-(defun note->help-note (note)
-  "Convert NOTE to a source error help note."
-  (se:make-source-error-help :span (note-span note)
-                             :replacement #'identity
-                             :message (note-text note)))
-
-(defun parse-error (file message syntax-error &optional notes)
-  "Rethrow SYNTAX-ERROR as a PARSE-ERROR."
-  (destructuring-bind (primary-note &rest secondary-notes)
-      (append (error-notes syntax-error) notes)
-    (error
-     'parse-error
-     :err (se:source-error :span (note-span primary-note)
-                           :file file
-                           :message message
-                           :primary-note (note-text primary-note)
-                           :notes (mapcar #'note->source-note
-                                          (remove-if #'help-note-p secondary-notes))
-                           :help-notes (mapcar #'note->help-note
-                                               (remove-if-not #'help-note-p secondary-notes))))))
+  "Read a list of symbols from CURSOR."
+  (collect cursor
+    :test (lambda (value)
+            (or (and value (symbolp value))
+                (error cursor ':next "expected symbol")))
+    :key #'cst:raw))

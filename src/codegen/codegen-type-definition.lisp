@@ -6,8 +6,12 @@
    #:struct-or-class
    #:make-struct-or-class-field
    #:struct-or-class-field-name)
+  (:import-from
+   #:coalton-impl/codegen/codegen-exception
+   #:codegen-exception)
   (:local-nicknames
    (#:settings #:coalton-impl/settings)
+   (#:source #:coalton-impl/source)
    (#:global-lexical #:coalton-impl/global-lexical)
    (#:tc #:coalton-impl/typechecker)
    (#:rt #:coalton-impl/runtime))
@@ -42,17 +46,24 @@
                 ,(rt:construct-function-entry `#',(tc:constructor-entry-name constructor) 1)))))
 
      (t
-      `(,(if (settings:coalton-release-p)
-             `(defstruct (,(tc:type-definition-name def)
-                          (:constructor nil)
-                          (:predicate nil))
-                ,@(when (tc:type-definition-docstring def)
-                    (list (tc:type-definition-docstring def))))
-
-             `(defclass ,(tc:type-definition-name def) ()
-                ()
-                ,@(when (tc:type-definition-docstring def)
-                    `((:documentation ,(tc:type-definition-docstring def))))))
+      `(,(cond
+           ((tc:type-definition-exception-p def)
+            `(define-condition ,(tc:type-definition-name def) (error)
+               ()
+               ,@(when (source:docstring def)
+                   `((:documentation ,(source:docstring def))))))
+           ((settings:coalton-release-p)
+            `(defstruct (,(tc:type-definition-name def)
+                         (:constructor nil)
+                         (:predicate nil)
+                         (:copier nil))
+               ,@(when (source:docstring def)
+                   (list (source:docstring def)))))
+           (t
+            `(defclass ,(tc:type-definition-name def) ()
+               ()
+               ,@(when (source:docstring def)
+                   `((:documentation ,(source:docstring def)))))))
 
         (defmethod make-load-form ((,(intern "OBJ") ,(tc:type-definition-name def)) &optional ,(intern "ENV"))
           (make-load-form-saving-slots ,(intern "OBJ") :environment ,(intern "ENV")))
@@ -78,14 +89,21 @@
             (when (settings:coalton-release-p)
               (list `(declaim (inline ,constructor-name))))
 
-            :append (struct-or-class
-                     :classname classname
-                     :constructor constructor-name
-                     :superclass superclass
-                     :fields fields
-                     :mode (if (settings:coalton-release-p)
-                               :struct
-                               :class))
+            :unless (tc:type-definition-exception-p def)
+              :append (struct-or-class
+                       :classname classname
+                       :constructor constructor-name
+                       :superclass superclass
+                       :fields fields
+                       :mode (if (settings:coalton-release-p)
+                                 ':struct
+                                 ':class))
+            :else
+              :append (codegen-exception
+                       :classname classname
+                       :superclass superclass
+                       :constructor constructor-name
+                       :fields fields)
 
             :collect (cond
                        ((zerop (tc:constructor-entry-arity constructor))
@@ -126,9 +144,16 @@
 
    (loop :for constructor :in (tc:type-definition-constructors def)
          :for name := (tc:constructor-entry-name constructor)
-         :for ty := (tc:lookup-value-type env name) 
+         :for ty := (tc:lookup-value-type env name)
+         :for docstring := (source:docstring constructor)
          :collect `(setf (documentation ',name 'variable)
-                         ,(format nil "~A :: ~A" name ty))
+                         ,(format nil "~A :: ~A~@[~%~A~]"
+                            name
+                            ty
+                            docstring))
          :when (> (tc:constructor-entry-arity constructor) 0)
            :collect `(setf (documentation ',name 'function)
-                           ,(format nil "~A :: ~A" name ty)))))
+                           ,(format nil "~A :: ~A~@[~%~A~]"
+                              name
+                              ty
+                              docstring)))))

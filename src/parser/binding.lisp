@@ -6,13 +6,16 @@
 (defpackage #:coalton-impl/parser/binding
   (:use
    #:cl
+   #:coalton-impl/parser/base
    #:coalton-impl/parser/pattern
    #:coalton-impl/parser/expression
    #:coalton-impl/parser/toplevel)
+  (:shadowing-import-from
+   #:coalton-impl/parser/base
+   #:parse-error)
   (:export
    #:binding-name                       ; FUNCTION
    #:binding-value                      ; FUNCTION
-   #:binding-source                     ; FUNCTION
    #:binding-parameters                 ; FUNCTION
    #:binding-toplevel-p                 ; FUNCTION
    #:binding-function-p                 ; FUNCTION
@@ -50,21 +53,6 @@
   (:method ((binding instance-method-definition))
     (declare (values node-body))
     (instance-method-definition-body binding)))
-
-(defgeneric binding-source (binding)
-  (:documentation "Returns the source location of BINDING")
-
-  (:method ((binding node-let-binding))
-    (declare (values cons))
-    (node-let-binding-source binding))
-
-  (:method ((binding toplevel-define))
-    (declare (values cons))
-    (toplevel-define-source binding))
-
-  (:method ((binding instance-method-definition))
-    (declare (values cons))
-    (instance-method-definition-source binding)))
 
 (defgeneric binding-parameters (binding)
   (:documentation "Returns the parameters bound in BINDING")
