@@ -119,17 +119,6 @@
                     (#:arr  #:coalton-library/lisparray))
   )
 
-(define-coalton-benchmark aobench
-    ()
-  (:use
-   #:coalton
-   #:coalton-prelude
-   #:coalton-library/math)
-  (:local-nicknames (#:list #:coalton-library/list)
-                    (#:types #:coalton-library/types)
-                    (#:cell #:coalton-library/cell)
-                    (#:arr  #:coalton-library/lisparray))
-
 (define-coalton-benchmark mapping
     ((:local-nicknames
       (#:hashtable #:coalton-library/hashtable)
@@ -145,6 +134,17 @@
                     (#:iter      #:coalton-library/iterator)
                     (#:l         #:coalton-library/experimental/loops)
                     (#:ordmap    #:coalton-library/ordmap)))
+
+(define-coalton-benchmark aobench
+    ()
+  (:use
+   #:coalton
+   #:coalton-prelude
+   #:coalton-library/math)
+  (:local-nicknames (#:list #:coalton-library/list)
+                    (#:types #:coalton-library/types)
+                    (#:cell #:coalton-library/cell)
+                    (#:arr  #:coalton-library/lisparray)))
 
 ;;;
 ;;; Running benchmarks
