@@ -144,7 +144,8 @@
   (:local-nicknames (#:list #:coalton-library/list)
                     (#:types #:coalton-library/types)
                     (#:cell #:coalton-library/cell)
-                    (#:arr  #:coalton-library/lisparray)))
+                    (#:arr  #:coalton-library/lisparray)
+                    (#:l #:coalton-library/experimental/loops)))
 
 ;;;
 ;;; Running benchmarks

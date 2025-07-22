@@ -104,6 +104,13 @@
     (arr:set! (.velts a) 2 (* (arr:aref (.velts a) 2) (arr:aref (.velts b) 2)))
     a)
 
+  (declare vmul-s! ((Num :t) => (Vec3 :t) -> :t -> (Vec3 :t)))
+  (define (vmul-s! a s)
+    (arr:set! (.velts a) 0 (* (arr:aref (.velts a) 0) s))
+    (arr:set! (.velts a) 1 (* (arr:aref (.velts a) 1) s))
+    (arr:set! (.velts a) 2 (* (arr:aref (.velts a) 2) s))
+    a)
+
   (declare vdiv! ((Reciprocable :t) => (Vec3 :t) -> (Vec3 :t) -> (Vec3 :t)))
   (define (vdiv! a b)
     (arr:set! (.velts a) 0 (/ (arr:aref (.velts a) 0) (arr:aref (.velts b) 0)))
@@ -168,7 +175,7 @@
 
   (declare update-noop (Intersection -> (Ray F64) -> Boolean))
   (define (update-noop _isect _r)
-    false)
+    False)
 
   (declare make-intersection (Unit -> Intersection))
   (define (make-intersection)
@@ -270,24 +277,26 @@
   ;; Updates isect.  Returns true if ray intersects, false otherwise.
   (declare find-is! (Intersection -> (Ray F64)
                                   -> (List (Intersection -> (Ray F64) -> Boolean))
-                                  -> Unit))
+                                  -> Boolean))
   (define (find-is! isect ray objs)
     (reset-intersection! isect)
-    (let ((declare rec ((List (Intersection -> (Ray F64) -> Boolean)) -> Unit))
-          (rec
-              (fn (objs)
-                (match objs
-                  ((Cons obj rest)
-                   (obj isect ray)
-                   (rec rest))
-                  ((Nil) Unit)))))
-      (rec objs)
-      ((cell:read (.updater isect)) isect ray)
-      Unit))
+    (let ((declare %rec ((List (Intersection -> (Ray F64) -> Boolean)) -> Unit))
+          (%rec
+            (fn (objs)
+              (match objs
+                ((Cons obj rest)
+                 (obj isect ray)
+                 (%rec rest))
+                ((Nil) Unit)))))
+      (%rec objs)
+      ((cell:read (.updater isect)) isect ray)))
 
   ;;-------------------------------------------------
   ;; Main entry
   ;;
+
+  (define (run-ambient-occlusion)
+    (do-scan ambientOcclusion))
 
   (define IMAGE_WIDTH (the UFix 256))
   (define IMAGE_HEIGHT (the UFix 256))
@@ -296,26 +305,24 @@
   (define NAO_SAMPLES (the UFix 8))
   (define MAX_TRACE_DEPTH (the UFix 16))
 
-  ;; (define (run-ambient-occlusion)
-  ;;   (do-scan ambient-occlusion))
-
   (declare times (UFix -> (UFix -> Unit) -> Unit))
   (define (times n proc)
-    (let ((declare rec (UFix -> Unit))
-          (rec (fn (i)
-                 (if (< i n)
-                     (progn
-                       (proc i)
-                       (rec (+ i 1)))
-                     Unit))))
-      (rec 0)))
+    (let ((declare %rec (UFix -> Unit))
+          (%rec (fn (i)
+                  (if (< i n)
+                      (progn
+                        (proc i)
+                        (%rec (+ i 1)))
+                      Unit))))
+      (%rec 0)))
 
   (declare do-scan (((Ray F64) -> Intersection -> F64) -> Unit))
   (define (do-scan sampler)
-    (times IMAGE_HEIGHT
-           (fn (y)
-             (render IMAGE_WIDTH IMAGE_HEIGHT y NSUBSAMPLES sampler)
-             Unit)))
+    (l:dotimes (y IMAGE_HEIGHT)
+      (let ((scanline (render IMAGE_WIDTH IMAGE_HEIGHT y NSUBSAMPLES sampler)))
+        (lisp Unit (y)
+          (cl:format cl:t "LINE ~d~%" y)
+          Unit))))
 
   (declare render (UFix -> UFix -> UFix -> UFix
                         -> ((Ray F64) -> Intersection -> F64)
@@ -325,9 +332,8 @@
           (sum (cell:new 0d0))
           (img (lisp (arr:LispArray U8) (width)
                  (cl:make-array (cl:list (cl:* width 4))
-                                :element-type 'cl:fixnum)))
-          (double (fn (n)
-                    (lisp F64 (n) (cl:coerce n 'cl:double-float)))))
+                                :element-type '(cl:unsigned-byte 8))))
+          (double (fn (n) (the F64 (fromInt (into n))))))
 
       (times
        width
@@ -353,12 +359,102 @@
                                                (vnormalize! (v3 px py -1d0)))
                                           isect)))
                  Unit)))))
-         (let ((area (lisp F64 (nsamp)
-                       (cl:coerce (* nsamp nsamp) 'cl:double-float)))
+         (let ((area (double (* nsamp nsamp)))
                (val (cell:read sum)))
            (arr:set! img (+ (* i 4) 0) (clampu8 (/ val area)))
            (arr:set! img (+ (* i 4) 1) (clampu8 (/ val area)))
            (arr:set! img (+ (* i 4) 2) (clampu8 (/ val area))))))
       img))
 
+  ;; ambient occlusion scanner
+  (define *objects-ao*
+    (make-list
+     (Sphere (v3 -2.0d0 0.0d0 -3.5d0) 0.5d0
+             (v3 1.0d0 1.0d0 1.0d0) (v3 0.0d0 0.0d0 0.0d0))
+     (Sphere (v3 -0.5d0 0.0d0 -3.0d0) 0.5d0
+             (v3 1.0d0 1.0d0 1.0d0) (v3 0.0d0 0.0d0 0.0d0))
+     (Sphere (v3 1.0d0 0.0d0 -2.2d0) 0.5d0
+             (v3 1.0d0 1.0d0 1.0d0) (v3 0.0d0 0.0d0 0.0d0))
+     (Plane (v3 0.0d0 -0.5d0 0.0d0) (v3 0.0d0 1.0d0 0.0d0)
+            (v3 1.0d0 1.0d0 1.0d0) (v3 0.0d0 0.0d0 0.0d0))))
+
+  (define (ambientOcclusion ray isect)
+    (if (not (find-is! isect ray *objects-ao*))
+        0.0d0
+        (let ((eps 0.00001d0)
+              (ntheta NAO_SAMPLES)
+              (nphi NAO_SAMPLES)
+              (p (.org ray)))
+          ;; set ray origin
+          (vcopy! p (.i-normal isect))
+          (vmul-s! p eps)
+          (vadd! p (.i-point isect))
+          (rec %loop ((j 0) (i 0) (occ 0.0d0))
+            (cond
+              ((== j ntheta) (/ (- (the F64 (fromInt (into (* ntheta nphi)))) occ)
+                                (the F64 (fromInt (into (* ntheta nphi))))))
+              ((== i nphi)   (%loop (+ j 1) 0 occ))
+              (True
+               (let dir = (random-direction))
+               (let (Tuple3 b0 b1 b2) = (orthoBasis (.i-normal isect)))
+               ;; update ray direction.  be careful not to overwrite b2,
+               ;; which is the same vector as (.i-normal isect).
+               (let d = (.dir ray))
+               (vmul-s! b0 (vx dir))
+               (vmul-s! b1 (vy dir))
+               (vcopy! d b2)
+               (vmul-s! d (vz dir))
+               (vadd! d b0)
+               (vadd! d b1)
+               (let hit = (find-is! isect ray *objects-ao*))
+               (%loop j (+ i 1) (if hit (+ occ 1.0d0) occ))))))))
+
+
+  ;; path tracing scanner
+#|
+  (define *objects-pt*
+    (make-list
+     (Sphere (v3 -1.05d0 0.0d0 -2.0d0) 0.5d0
+             (v3 0.75d0 0.0d0 0.0d0) (v3 0.0d0 0.0d0 0.0d0))
+     (Sphere (v3 0.0d0 0.0d0 -2.0d0) 0.5d0
+             (v3 1.0d0 1.0d0 1.0d0) (v3 1.0d0 1.0d0 1.0d0))
+     (Sphere (v3 1.05d0 0.0d0 -2.0d0) 0.5d0
+             (v3 0.0d0 0.0d0 1.0d0) (v3 0.0d0 0.0d0 0.0d0))
+     (Plane (v3 0.0d0 -0.5d0 0.0d0) (v3 0.0d0 1.0d0 0.0d0)
+            (v3 1.0d0 1.0d0 1.0d0) (v3 0.0d0 0.0d0 0.0d0))))
+
+  (declare trace! ((Ray F64) -> Intersection -> F64 -> (Vec3 F64)))
+  (define (trace! r isect depth)
+    (cond ((not (find-is! isect r *objects-pt*))
+           (v3 0.7d0 0.7d0 0.7d0))
+          (True
+           (let dir = (random-direction))
+           (let (Tuple3 b0 b1 b2) = (orthoBasis (.i-normal isect)))
+           ;; update ray direction.  be careful not to overwrite b2,
+           ;; which is the same vector as (.i-normal isect).
+           (vmul-s! b0 (vx dir))
+           (vmul-s! b1 (vy dir))
+           (vcopy! (.dir r) b2)
+           (vmul-s! (.dir r) (vz dir))
+           (vadd! (.dir r) b0)
+           (vadd! (.dir r) b1)
+           ;; update ray origin
+           (vcopy! (.org r) (.dir r))
+           (vmul-s! (.org r) 0.00001d0)
+           (vadd! (.org r) (.i-point isect))
+           (let col = (if (== depth (- MAX_TRACE_DEPTH 1))
+                          (v3 0.0d0 0.0d0 0.0d0)
+                          (trace! r isect (+ depth 1))))
+           (vmul! col (.col isect))
+           (vadd! col (.emissiveCol isect))
+           col)))
+
+  (declare pathTrace ((Ray F64) -> Intersection -> (Vec3 F64)))
+  (define (pathTrace r isect)
+    (let col = (v3 0.0d0 0.0d0 0.0d0))
+    (dotimes (i NPATH_SAMPLES)
+      (vadd! col (trace! (copy-ray r) isect 0)))
+    (vmul! col (/ 1.0d0 NPATH_SAMPLES))
+    col)
+|#
   )
